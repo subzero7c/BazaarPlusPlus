@@ -1,0 +1,12 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(find ~/Library/Logs -name \"*.log\" 2>/dev/null | grep -i \"bazaar\\\\|unity\\\\|player\" | head -10)",
+      "Read(//Users/mac041/Library/Logs/**)",
+      "Bash(cargo --version)",
+      "Bash(npm --version)",
+      "Bash(curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs)",
+      "Bash(sh -s -- -y)"
+    ]
+  }
+}
