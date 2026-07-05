@@ -1,6 +1,7 @@
 #nullable enable
 using System;
 using System.Collections.Generic;
+using System.Threading;
 using System.Threading.Tasks;
 using BazaarGameShared.Domain.Cards;
 using BazaarGameShared.Domain.Cards.Item;
@@ -9,26 +10,32 @@ using BazaarGameShared.Domain.Core.Types;
 using BazaarPlusPlus.GameInterop.Cards;
 using BazaarPlusPlus.GameInterop.StaticCards;
 using BazaarPlusPlus.Infrastructure;
+using TheBazaar.AppFramework;
 using UnityEngine;
+using Object = UnityEngine.Object;
 
 namespace BazaarPlusPlus.GameInterop.CardPreview;
 
 internal sealed class NativeCardPreviewFactory
 {
-    private readonly NativeCardPreviewPool _pool;
+    private readonly int _layer;
     private readonly string _logComponent;
+    private readonly List<GameObject> _created = new();
 
-    public NativeCardPreviewFactory(NativeCardPreviewPool pool, string logComponent)
+    public NativeCardPreviewFactory(int layer, string logComponent)
     {
-        _pool = pool ?? throw new ArgumentNullException(nameof(pool));
+        _layer = layer;
         _logComponent = string.IsNullOrWhiteSpace(logComponent)
             ? "NativeCardPreviewFactory"
             : logComponent;
     }
 
-    public bool ReflectionReady => NativeCardPreviewReflection.SetUpMethod != null;
+    public bool ReflectionReady => NativeCardPreviewReflection.CardPreviewBaseType != null;
 
-    public bool EnsureReady(bool requireSkill = false) => _pool.TryEnsurePrefabRefs(requireSkill);
+    public bool EnsureReady(bool requireSkill = false) =>
+        NativeCardPreviewReflection.CardPreviewBaseType != null
+        && Services.TryGet<AssetLoader>(out var assetLoader)
+        && assetLoader != null;
 
     public bool TryResolveSpan(NativeCardPreviewSpec? spec, out int span)
     {
@@ -40,14 +47,14 @@ internal sealed class NativeCardPreviewFactory
         return true;
     }
 
-    public async Task<NativeCardPreviewHandle?> TryCreateAsync(
+    public Task<NativeCardPreviewHandle?> TryCreateAsync(
         NativeCardPreviewSpec? spec,
         Transform parent,
         int instanceIndex
     )
     {
         if (parent == null || !TryResolveTemplate(spec, out var template) || spec == null)
-            return null;
+            return Task.FromResult<NativeCardPreviewHandle?>(null);
 
         if (!TryResolveKind(template, out var kind))
         {
@@ -55,40 +62,117 @@ internal sealed class NativeCardPreviewFactory
                 _logComponent,
                 $"Unsupported card preview type={template.Type} size={template.Size} template={template.Id}."
             );
-            return null;
+            return Task.FromResult<NativeCardPreviewHandle?>(null);
         }
 
         var instance = BuildSyntheticInstance(spec, kind, instanceIndex);
-        var (card, isNew) = await _pool.TakeAsync(kind, instance, parent);
-        if (card == null)
-            return null;
+        var handle = new NativeCardPreviewHandle(kind, spec);
+        _ = CreateCardAsync(handle, parent, instance, kind, instanceIndex);
+        return Task.FromResult<NativeCardPreviewHandle?>(handle);
 
-        var rect = card.transform as RectTransform ?? card.GetComponent<RectTransform>();
-        if (rect == null)
+        async Task CreateCardAsync(
+            NativeCardPreviewHandle previewHandle,
+            Transform handleParent,
+            TCardInstance cardInstance,
+            NativeCardPreviewKind previewKind,
+            int index
+        )
         {
-            _pool.Return(card, kind);
-            return null;
-        }
+            try
+            {
+                if (!Services.TryGet<AssetLoader>(out var assetLoader) || assetLoader == null)
+                {
+                    BppLog.Warn(_logComponent, "AssetLoader unavailable for native card preview.");
+                    previewHandle.MarkReady();
+                    return;
+                }
 
-        // New cards from InstantiateUICardAsync already had SetUp called internally — skip the
-        // redundant second SetUp and signal ready immediately. Recycled pool-hit cards need SetUp
-        // to rebind to the new template/instance before they can be shown.
-        var setUpTask = isNew
-            ? Task.CompletedTask
-            : NativeCardPreviewRuntime.InvokeSetUpSafe(card, template, instance, _logComponent);
-        return new NativeCardPreviewHandle(card, rect, kind, setUpTask, spec);
+                var go = await assetLoader.InstantiateUICardAsync(
+                    cardInstance,
+                    handleParent,
+                    CancellationToken.None
+                );
+                if (go == null)
+                {
+                    previewHandle.MarkReady();
+                    return;
+                }
+
+                if (previewHandle.IsReleased)
+                {
+                    Object.Destroy(go);
+                    previewHandle.MarkReady();
+                    return;
+                }
+
+                go.name = $"BppNativeCardPreview_{previewKind}_{Mathf.Max(0, index)}";
+                NativeCardPreviewReflection.ApplyLayerRecursive(go, _layer);
+                _created.Add(go);
+
+                var card = go.GetComponent(NativeCardPreviewReflection.CardPreviewBaseType!);
+                var rect = go.transform as RectTransform ?? go.GetComponent<RectTransform>();
+                if (card == null || rect == null)
+                {
+                    BppLog.Warn(
+                        _logComponent,
+                        $"Instantiated UI card without CardPreviewBase/RectTransform template={cardInstance.TemplateId}."
+                    );
+                    Object.Destroy(go);
+                    _created.Remove(go);
+                    previewHandle.MarkReady();
+                    return;
+                }
+
+                previewHandle.Bind(card, rect);
+                go.SetActive(true);
+                NativeCardPreviewRuntime.Resize(card, _logComponent);
+                previewHandle.MarkReady();
+            }
+            catch (Exception ex)
+            {
+                BppLog.Warn(
+                    _logComponent,
+                    $"InstantiateUICardAsync failed for template={cardInstance.TemplateId}: {ex.Message}"
+                );
+                previewHandle.MarkFailed(ex);
+                return;
+            }
+        }
     }
 
     public void Show(NativeCardPreviewHandle? handle, bool show = true)
     {
-        if (handle == null)
+        if (handle?.Card == null)
             return;
         NativeCardPreviewRuntime.Show(handle.Card, show, _logComponent);
     }
 
-    public void Return(NativeCardPreviewHandle? handle) => _pool.Return(handle);
+    public void Return(NativeCardPreviewHandle? handle)
+    {
+        if (handle == null)
+            return;
 
-    public void DestroyAll() => _pool.DestroyAll();
+        handle.MarkReleased();
+        if (handle.Card == null)
+            return;
+
+        var go = handle.Card.gameObject;
+        if (go != null)
+        {
+            _created.Remove(go);
+            Object.Destroy(go);
+        }
+    }
+
+    public void DestroyAll()
+    {
+        foreach (var go in _created)
+        {
+            if (go != null)
+                Object.Destroy(go);
+        }
+        _created.Clear();
+    }
 
     private bool TryResolveTemplate(NativeCardPreviewSpec? spec, out TCardBase template)
     {

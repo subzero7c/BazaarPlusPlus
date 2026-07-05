@@ -24,7 +24,6 @@ internal sealed class ItemBoardPreviewSurface : IDisposable
     private RectTransform? _clipRect;
     private RectTransform? _boardRect;
     private RectTransform[]? _sockets;
-    private NativeCardPreviewPool? _pool;
     private NativeCardPreviewFactory? _factory;
     private NativeCardPreviewHoverRelay? _hoverRelay;
     private NativeCardPreviewHandle? _hoveredHandle;
@@ -227,7 +226,6 @@ internal sealed class ItemBoardPreviewSurface : IDisposable
         ReturnActiveCardsToPool();
         _factory?.DestroyAll();
         _factory = null;
-        _pool = null;
         _sockets = null;
 
         if (_root != null)
@@ -245,19 +243,14 @@ internal sealed class ItemBoardPreviewSurface : IDisposable
 
     private bool EnsureInitialized(ItemBoardPreviewOptions options)
     {
-        if (NativeCardPreviewReflection.SetUpMethod == null)
+        if (NativeCardPreviewReflection.CardPreviewBaseType == null)
             return false;
 
         if (_runtimeLayer != int.MinValue && _runtimeLayer != options.Layer)
             DisposeRuntimeObjects();
 
         _runtimeLayer = options.Layer;
-        _pool ??= new NativeCardPreviewPool(
-            options.Layer,
-            requireSockets: true,
-            options.LogComponent
-        );
-        _factory ??= new NativeCardPreviewFactory(_pool, options.LogComponent);
+        _factory ??= new NativeCardPreviewFactory(options.Layer, options.LogComponent);
         _hoverRelay ??= new NativeCardPreviewHoverRelay(options.LogComponent);
 
         if (
@@ -276,12 +269,7 @@ internal sealed class ItemBoardPreviewSurface : IDisposable
 
         DisposeRuntimeObjects();
         _runtimeLayer = options.Layer;
-        _pool = new NativeCardPreviewPool(
-            options.Layer,
-            requireSockets: true,
-            options.LogComponent
-        );
-        _factory = new NativeCardPreviewFactory(_pool, options.LogComponent);
+        _factory = new NativeCardPreviewFactory(options.Layer, options.LogComponent);
         _hoverRelay = new NativeCardPreviewHoverRelay(options.LogComponent);
 
         if (!_factory.EnsureReady(requireSkill: false))
@@ -455,7 +443,7 @@ internal sealed class ItemBoardPreviewSurface : IDisposable
         var laid = new List<(Transform card, float frameLeft, float frameWidth)>();
         foreach (var handle in _active)
         {
-            if (!handle.SetUpTask.IsCompletedSuccessfully || handle.Card == null)
+            if (!handle.SetUpTask.IsCompletedSuccessfully || handle.Card == null || handle.Rect == null)
                 continue;
 
             var root = handle.Rect;
@@ -489,7 +477,7 @@ internal sealed class ItemBoardPreviewSurface : IDisposable
         var corners = new Vector3[4];
         foreach (var handle in _active)
         {
-            if (!handle.SetUpTask.IsCompletedSuccessfully || handle.Card == null)
+            if (!handle.SetUpTask.IsCompletedSuccessfully || handle.Card == null || handle.Rect == null)
                 continue;
             if (!handle.Card.gameObject.activeInHierarchy)
                 continue;
@@ -551,7 +539,7 @@ internal sealed class ItemBoardPreviewSurface : IDisposable
         var corners = new Vector3[4];
         foreach (var handle in _active)
         {
-            if (!handle.SetUpTask.IsCompletedSuccessfully || handle.Card == null)
+            if (!handle.SetUpTask.IsCompletedSuccessfully || handle.Card == null || handle.Rect == null)
                 continue;
             if (!handle.Card.gameObject.activeInHierarchy)
                 continue;
@@ -594,7 +582,6 @@ internal sealed class ItemBoardPreviewSurface : IDisposable
         ReturnActiveCardsToPool();
         _factory?.DestroyAll();
         _factory = null;
-        _pool = null;
         _sockets = null;
 
         if (_root != null)
