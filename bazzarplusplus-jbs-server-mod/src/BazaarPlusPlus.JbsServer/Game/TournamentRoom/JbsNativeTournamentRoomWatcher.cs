@@ -17,6 +17,7 @@ internal sealed class JbsNativeTournamentRoomWatcher : MonoBehaviour
     private static readonly Regex RoomCodeRegex = new(@"\b[A-Z0-9]{6}\b", RegexOptions.Compiled);
 
     private readonly HashSet<int> _observedCreateButtons = new();
+    private readonly HashSet<int> _observedLobbyCancelButtons = new();
     private static JbsNativeTournamentRoomWatcher? _instance;
     private float _nextScanTime;
     private float _pendingCreateUntil;
@@ -55,7 +56,7 @@ internal sealed class JbsNativeTournamentRoomWatcher : MonoBehaviour
         _nextScanTime = Time.unscaledTime + ScanIntervalSeconds;
         try
         {
-            AttachCreateButtonListeners();
+            AttachNativeButtonListeners();
             if (Time.unscaledTime > _pendingCreateUntil)
                 return;
 
@@ -80,7 +81,7 @@ internal sealed class JbsNativeTournamentRoomWatcher : MonoBehaviour
         }
     }
 
-    private void AttachCreateButtonListeners()
+    private void AttachNativeButtonListeners()
     {
         foreach (var customButton in Resources.FindObjectsOfTypeAll<ButtonCustom>())
         {
@@ -88,21 +89,27 @@ internal sealed class JbsNativeTournamentRoomWatcher : MonoBehaviour
                 continue;
 
             var id = customButton.GetInstanceID();
-            if (_observedCreateButtons.Contains(id))
-                continue;
-
             var transform = customButton.transform;
             var path = BuildPath(transform);
-            if (!IsNativeCreateConfirmButton(customButton, path))
-                continue;
-
             var button = customButton.GetButton();
             if (button == null)
                 continue;
 
-            _observedCreateButtons.Add(id);
-            button.onClick.AddListener(OnNativeCreateConfirmClicked);
-            JbsLog.Info(LogCategory, $"Listening native create button: {path}");
+            if (!_observedCreateButtons.Contains(id)
+                && IsNativeCreateConfirmButton(customButton, path))
+            {
+                _observedCreateButtons.Add(id);
+                button.onClick.AddListener(OnNativeCreateConfirmClicked);
+                JbsLog.Info(LogCategory, $"Listening native create button: {path}");
+            }
+
+            if (!_observedLobbyCancelButtons.Contains(id)
+                && IsNativeLobbyCancelButton(customButton, path))
+            {
+                _observedLobbyCancelButtons.Add(id);
+                button.onClick.AddListener(OnNativeLobbyCancelClicked);
+                JbsLog.Info(LogCategory, $"Listening native lobby cancel button: {path}");
+            }
         }
     }
 
@@ -110,6 +117,14 @@ internal sealed class JbsNativeTournamentRoomWatcher : MonoBehaviour
     {
         _pendingCreateUntil = Time.unscaledTime + PendingCreateWindowSeconds;
         JbsLog.Info(LogCategory, "Native create button clicked; waiting for lobby code.");
+    }
+
+    private void OnNativeLobbyCancelClicked()
+    {
+        _pendingCreateUntil = 0f;
+        _lastNotifiedRoomCode = string.Empty;
+        JbsLog.Info(LogCategory, "Native lobby cancel button clicked; leaving tournament chat room.");
+        TournamentRoomPanel.LeaveForNativeLobbyCancelled();
     }
 
     private static bool IsNativeCreateConfirmButton(ButtonCustom button, string path)
@@ -126,6 +141,41 @@ internal sealed class JbsNativeTournamentRoomWatcher : MonoBehaviour
             if (string.Equals(value, "CREATE", StringComparison.OrdinalIgnoreCase)
                 || string.Equals(value, "创建", StringComparison.OrdinalIgnoreCase)
                 || string.Equals(value, "创建大厅", StringComparison.OrdinalIgnoreCase))
+                return true;
+        }
+
+        return false;
+    }
+
+    private static bool IsNativeLobbyCancelButton(ButtonCustom button, string path)
+    {
+        if (path.IndexOf("Section_Lobby", StringComparison.OrdinalIgnoreCase) < 0
+            && path.IndexOf("Tournament_Module_LobbyAssigned_PV", StringComparison.OrdinalIgnoreCase) < 0)
+            return false;
+
+        foreach (var text in button.GetComponentsInChildren<TextMeshProUGUI>(true))
+        {
+            var value = CleanText(text?.text);
+            if (string.Equals(value, "取消", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(value, "退出", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(value, "离开", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(value, "CANCEL", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(value, "LEAVE", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(value, "EXIT", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(value, "BACK", StringComparison.OrdinalIgnoreCase))
+                return true;
+        }
+
+        foreach (var text in button.GetComponentsInChildren<Text>(true))
+        {
+            var value = CleanText(text?.text);
+            if (string.Equals(value, "取消", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(value, "退出", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(value, "离开", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(value, "CANCEL", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(value, "LEAVE", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(value, "EXIT", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(value, "BACK", StringComparison.OrdinalIgnoreCase))
                 return true;
         }
 

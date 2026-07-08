@@ -1,0 +1,111 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <AssemblyName>BazaarPlusPlus.JBSMatch</AssemblyName>
+    <Description>BazaarPlusPlus Chat Match - Tournament Room Matching Mod</Description>
+    <RootNamespace>BazaarPlusPlus.JBSMatch</RootNamespace>
+    <LangVersion>12</LangVersion>
+    <TargetFramework>netstandard2.1</TargetFramework>
+    <Nullable>enable</Nullable>
+    <NoWarn>CS0436</NoWarn>
+    <RestoreAdditionalProjectSources>
+      https://api.nuget.org/v3/index.json;
+      https://nuget.bepinex.dev/v3/index.json;
+    </RestoreAdditionalProjectSources>
+  </PropertyGroup>
+
+  <!-- Candidate install paths (mirrors main BazaarPlusPlus.csproj) -->
+  <PropertyGroup>
+    <MacSteamManagedDefault>$(HOME)/Library/Application Support/Steam/steamapps/common/The Bazaar/TheBazaar.app/Contents/Resources/Data/Managed</MacSteamManagedDefault>
+    <MacGamePathDefault>$(HOME)/Library/Application Support/Steam/steamapps/common/The Bazaar</MacGamePathDefault>
+    <WinSteamManagedC>C:\Program Files (x86)\Steam\steamapps\common\The Bazaar\TheBazaar_Data\Managed</WinSteamManagedC>
+    <WinGamePathC>C:\Program Files (x86)\Steam\steamapps\common\The Bazaar</WinGamePathC>
+    <WinSteamManagedD>D:\Program Files (x86)\Steam\steamapps\common\The Bazaar\TheBazaar_Data\Managed</WinSteamManagedD>
+    <WinGamePathD>D:\Program Files (x86)\Steam\steamapps\common\The Bazaar</WinGamePathD>
+    <WinSteamManagedE>E:\Program Files (x86)\Steam\steamapps\common\The Bazaar\TheBazaar_Data\Managed</WinSteamManagedE>
+    <WinGamePathE>E:\Program Files (x86)\Steam\steamapps\common\The Bazaar</WinGamePathE>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(ManagedPath)' == '' and Exists('$(WinSteamManagedC)\Assembly-CSharp.dll')">
+    <ManagedPath>$(WinSteamManagedC)</ManagedPath>
+    <GamePath>$(WinGamePathC)</GamePath>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(ManagedPath)' == '' and Exists('$(WinSteamManagedD)\Assembly-CSharp.dll')">
+    <ManagedPath>$(WinSteamManagedD)</ManagedPath>
+    <GamePath>$(WinGamePathD)</GamePath>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(ManagedPath)' == '' and Exists('$(WinSteamManagedE)\Assembly-CSharp.dll')">
+    <ManagedPath>$(WinSteamManagedE)</ManagedPath>
+    <GamePath>$(WinGamePathE)</GamePath>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(ManagedPath)' == '' and Exists('$(MacSteamManagedDefault)/Assembly-CSharp.dll')">
+    <ManagedPath>$(MacSteamManagedDefault)</ManagedPath>
+    <GamePath>$(MacGamePathDefault)</GamePath>
+  </PropertyGroup>
+
+  <!-- NuGet packages -->
+  <ItemGroup>
+    <PackageReference Include="BepInEx.Analyzers" Version="1.*" PrivateAssets="all" />
+    <PackageReference Include="BepInEx.Core" Version="5.*" />
+    <PackageReference Include="Krafs.Publicizer" Version="2.3.0" PrivateAssets="all" />
+    <PackageReference Include="UnityEngine.Modules" Version="2022.3.40" IncludeAssets="compile" />
+    <PackageReference Include="NETStandard.Library" Version="2.0.3" />
+  </ItemGroup>
+
+  <!-- Game assembly references -->
+  <ItemGroup>
+    <Reference Include="Assembly-CSharp">
+      <HintPath>$(ManagedPath)\Assembly-CSharp.dll</HintPath>
+    </Reference>
+    <Reference Include="BazaarGameClient">
+      <HintPath>$(ManagedPath)\BazaarGameClient.dll</HintPath>
+    </Reference>
+    <Reference Include="BazaarGameShared">
+      <HintPath>$(ManagedPath)\BazaarGameShared.dll</HintPath>
+    </Reference>
+    <Reference Include="TheBazaarRuntime">
+      <HintPath>$(ManagedPath)\TheBazaarRuntime.dll</HintPath>
+    </Reference>
+    <Reference Include="UnityEngine.UI">
+      <HintPath>$(ManagedPath)\UnityEngine.UI.dll</HintPath>
+    </Reference>
+    <Reference Include="UnityEngine.UIElementsModule">
+      <HintPath>$(ManagedPath)\UnityEngine.UIElementsModule.dll</HintPath>
+    </Reference>
+    <Reference Include="Unity.TextMeshPro">
+      <HintPath>$(ManagedPath)\Unity.TextMeshPro.dll</HintPath>
+    </Reference>
+  </ItemGroup>
+
+  <ItemGroup>
+    <EmbeddedResource
+      Include="Resources\Fonts\LXGWWenKai-Regular.ttf"
+      LogicalName="BazaarPlusPlus.JBSMatch.Resources.Fonts.LXGWWenKai-Regular.ttf"
+    />
+  </ItemGroup>
+
+  <!-- Publicize only game assemblies, not BepInEx (avoids CS0229 duplicates) -->
+  <ItemGroup>
+    <Publicize Include="Assembly-CSharp" />
+    <Publicize Include="BazaarGameClient" />
+    <Publicize Include="BazaarGameShared" />
+    <Publicize Include="TheBazaarRuntime" />
+  </ItemGroup>
+
+  <!-- Debug: copy DLL and locale files to BepInEx plugins -->
+  <Target
+    Name="CopyToBepInExPlugins"
+    AfterTargets="Build"
+    Condition="'$(Configuration)' == 'Debug' and '$(GamePath)' != ''"
+  >
+    <Copy
+      SourceFiles="$(TargetDir)$(TargetName).dll"
+      DestinationFiles="$(GamePath)\BepInEx\plugins\$(TargetName).dll"
+    />
+    <MakeDir Directories="$(GamePath)\BepInEx\plugins\JBSMatch\locales" />
+    <Copy
+      SourceFiles="$(MSBuildThisFileDirectory)..\..\locales\zh-CN.json;$(MSBuildThisFileDirectory)..\..\locales\en-US.json"
+      DestinationFolder="$(GamePath)\BepInEx\plugins\JBSMatch\locales"
+    />
+    <Message Text="[JBSMatch] Copied DLL and locale files to BepInEx plugins." Importance="high" />
+  </Target>
+</Project>

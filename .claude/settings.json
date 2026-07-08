@@ -6,7 +6,24 @@
       "Bash(cargo --version)",
       "Bash(npm --version)",
       "Bash(curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs)",
-      "Bash(sh -s -- -y)"
+      "Bash(sh -s -- -y)",
+      "Bash(git check-ignore *)",
+      "Bash(python3 -)",
+      "Bash(dotnet build *)",
+      "Bash(/usr/local/share/dotnet/dotnet build *)",
+      "Bash(python3 sync-preview.py --check)",
+      "Bash(python3 sync-preview.py)",
+      "Bash(ls ~/.dotnet/ 2>/dev/null && ls ~/.dotnet/sdk/ 2>/dev/null)",
+      "Read(//Users/mac041/.dotnet/**)",
+      "Bash(~/.dotnet/dotnet --version)",
+      "Bash(~/.dotnet/dotnet build *)",
+      "Bash(find ~/zhanzhang -maxdepth 3 -type d -name \"*cf*\" -o -type d -name \"*chat*\" 2>/dev/null | grep -v \".git\" | head -20)",
+      "Read(//Users/mac041/**)",
+      "Bash(find ~ -maxdepth 4 -type d \\\\\\( -name \"cf-chat\" -o -name \"cfchat\" \\\\\\) 2>/dev/null | grep -v \".git\")",
+      "Bash(find /Users/starunion/zhanzhang/cf-chat-server -type f | grep -v \".git\" | sort)",
+      "Read(//Users/starunion/zhanzhang/cf-chat-server/**)",
+      "Bash(find /Users/starunion/zhanzhang/cf-chat-server/src -type f | sort)",
+      "Read(//Users/starunion/zhanzhang/cf-chat-server/src/**)"
     ]
   }
 }

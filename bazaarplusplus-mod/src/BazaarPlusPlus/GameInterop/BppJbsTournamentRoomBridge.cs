@@ -9,7 +9,7 @@ internal static class BppJbsTournamentRoomBridge
 {
     private const BindingFlags StaticPublic = BindingFlags.Public | BindingFlags.Static;
     private const string BridgeTypeName =
-        "BazaarPlusPlus.JbsServer.Game.TournamentRoom.JbsTournamentRoomBridge, BazaarPlusPlus.JbsServer";
+        "BazaarPlusPlus.JBSMatch.Game.TournamentRoom.JbsTournamentRoomBridge, BazaarPlusPlus.JBSMatch";
     private const string LogCategory = "JbsTournamentRoomBridge";
 
     internal static void OpenNativeTournamentRoom(string roomCode, string roomName)

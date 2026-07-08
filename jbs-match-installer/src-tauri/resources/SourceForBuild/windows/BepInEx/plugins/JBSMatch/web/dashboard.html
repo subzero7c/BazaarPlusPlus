@@ -1,0 +1,553 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>BazaarPlusPlus 服务器看板</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; }
+  body {
+    margin: 0;
+    min-height: 100dvh;
+    background: #15161a;
+    color: #e8e8ec;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  }
+  button, input { font: inherit; }
+  .shell {
+    width: min(1180px, calc(100vw - 32px));
+    margin: 0 auto;
+    padding: 24px 0 32px;
+  }
+  .topbar {
+    display: flex;
+    gap: 16px;
+    align-items: center;
+    justify-content: space-between;
+    padding-bottom: 18px;
+    border-bottom: 1px solid #2a2b33;
+  }
+  .title h1 {
+    margin: 0;
+    color: #f4d37e;
+    font-size: 24px;
+    font-weight: 750;
+  }
+  .title p {
+    margin: 6px 0 0;
+    color: #8a96aa;
+    font-size: 13px;
+  }
+  .controls {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    min-width: min(520px, 100%);
+  }
+  .controls input {
+    width: 100%;
+    min-width: 220px;
+    background: #1d1f27;
+    border: 1px solid #383a46;
+    border-radius: 6px;
+    color: #eef0f5;
+    outline: none;
+    padding: 10px 12px;
+    font-family: "Courier New", monospace;
+  }
+  .controls input:focus { border-color: #c2731a; }
+  .btn {
+    border: 1px solid #ffffff24;
+    border-radius: 6px;
+    background: #2d4f33;
+    color: #f4fff5;
+    cursor: pointer;
+    padding: 10px 14px;
+    white-space: nowrap;
+  }
+  .btn.secondary { background: #2a3f61; color: #dbe8ff; }
+  .btn:hover { filter: brightness(1.12); }
+  .btn:disabled {
+    background: #292a31;
+    color: #6b7280;
+    cursor: default;
+    filter: none;
+  }
+  .status-line {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    align-items: center;
+    margin: 18px 0;
+    color: #8b96a8;
+    font-size: 13px;
+  }
+  .dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: #8a3d3d;
+    display: inline-block;
+  }
+  .dot.on { background: #61a875; }
+  .dot.warn { background: #d7a84a; }
+  .metrics {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 12px;
+  }
+  .metric {
+    background: #1d1e25;
+    border: 1px solid #30323c;
+    border-radius: 8px;
+    padding: 16px;
+    min-height: 112px;
+  }
+  .metric-label {
+    color: #8d99ad;
+    font-size: 12px;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+  }
+  .metric-value {
+    margin-top: 12px;
+    color: #f3f3f6;
+    font-size: 34px;
+    font-weight: 760;
+    line-height: 1;
+  }
+  .metric-note {
+    margin-top: 10px;
+    color: #6f7b8f;
+    font-size: 12px;
+    line-height: 1.4;
+  }
+  .metric.load .metric-value { color: #83c994; }
+  .metric.load.medium .metric-value { color: #e3bb62; }
+  .metric.load.high .metric-value { color: #e16d66; }
+  .panel {
+    margin-top: 18px;
+    background: #181920;
+    border: 1px solid #30323c;
+    border-radius: 8px;
+    overflow: hidden;
+  }
+  .panel-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 14px 16px;
+    border-bottom: 1px solid #282a33;
+  }
+  .panel-head h2 {
+    margin: 0;
+    color: #f1d287;
+    font-size: 16px;
+  }
+  .panel-head span {
+    color: #78859a;
+    font-size: 12px;
+  }
+  .head-actions {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+  }
+  .small-btn {
+    border: 1px solid #ffffff20;
+    border-radius: 6px;
+    background: #262b38;
+    color: #d2d9e8;
+    cursor: pointer;
+    padding: 6px 10px;
+    font-size: 12px;
+    white-space: nowrap;
+  }
+  .small-btn:hover { background: #30384a; }
+  .small-btn:disabled {
+    color: #687386;
+    cursor: default;
+    background: #22242b;
+  }
+  .table-wrap { overflow-x: auto; }
+  table {
+    width: 100%;
+    min-width: 760px;
+    border-collapse: collapse;
+  }
+  th, td {
+    padding: 12px 16px;
+    border-bottom: 1px solid #242630;
+    text-align: left;
+    font-size: 13px;
+  }
+  th {
+    color: #8fa0bb;
+    font-weight: 650;
+    background: #1d1f27;
+  }
+  td { color: #d9dce5; }
+  tr:last-child td { border-bottom: 0; }
+  .mono { font-family: "Courier New", monospace; }
+  .muted { color: #778297; }
+  .pill {
+    display: inline-flex;
+    align-items: center;
+    border-radius: 999px;
+    border: 1px solid #ffffff1f;
+    padding: 3px 8px;
+    color: #c9d4e7;
+    background: #242733;
+    font-size: 12px;
+    white-space: nowrap;
+  }
+  .empty {
+    padding: 42px 16px;
+    text-align: center;
+    color: #68758a;
+    font-size: 14px;
+  }
+  .error {
+    display: none;
+    margin-top: 14px;
+    padding: 12px 14px;
+    border: 1px solid #8f3f3f;
+    border-radius: 8px;
+    background: #2a1b1d;
+    color: #f0b8b8;
+    font-size: 13px;
+  }
+  .log-box {
+    min-height: 260px;
+    max-height: 420px;
+    overflow: auto;
+    margin: 0;
+    padding: 14px 16px;
+    background: #101116;
+    color: #c9d1de;
+    font: 12px/1.55 "SFMono-Regular", Consolas, "Courier New", monospace;
+    white-space: pre-wrap;
+    word-break: break-word;
+  }
+  .log-box.empty-log {
+    color: #68758a;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+  }
+  @media (max-width: 860px) {
+    .topbar { align-items: stretch; flex-direction: column; }
+    .controls { min-width: 0; }
+    .metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  }
+  @media (max-width: 560px) {
+    .shell { width: min(100vw - 20px, 1180px); padding-top: 16px; }
+    .controls { flex-direction: column; align-items: stretch; }
+    .controls input { min-width: 0; }
+    .metrics { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+<main class="shell">
+  <header class="topbar">
+    <div class="title">
+      <h1>服务器看板</h1>
+      <p>查看当前 JBS 服务负载、房间数和在线人数</p>
+    </div>
+    <div class="controls">
+      <input id="server-url" type="text" placeholder="http://localhost:8787" spellcheck="false">
+      <button class="btn secondary" id="refresh-btn">刷新</button>
+      <button class="btn" id="connect-btn">连接</button>
+    </div>
+  </header>
+
+  <div class="status-line">
+    <span><i class="dot" id="status-dot"></i></span>
+    <span id="status-text">未连接</span>
+    <span id="updated-at"></span>
+    <span id="uptime"></span>
+  </div>
+  <div class="error" id="error-box"></div>
+
+  <section class="metrics">
+    <div class="metric load" id="load-card">
+      <div class="metric-label">当前负载</div>
+      <div class="metric-value" id="load-value">--</div>
+      <div class="metric-note" id="load-note">等待数据</div>
+    </div>
+    <div class="metric">
+      <div class="metric-label">房间数</div>
+      <div class="metric-value" id="room-count">--</div>
+      <div class="metric-note">包含系统预置房间</div>
+    </div>
+    <div class="metric">
+      <div class="metric-label">在线人数</div>
+      <div class="metric-value" id="online-count">--</div>
+      <div class="metric-note" id="registered-note">WebSocket 实时连接</div>
+    </div>
+    <div class="metric">
+      <div class="metric-label">内存占用</div>
+      <div class="metric-value" id="memory-value">--</div>
+      <div class="metric-note" id="runtime-note">Go 运行时指标</div>
+    </div>
+  </section>
+
+  <section class="panel">
+    <div class="panel-head">
+      <h2>房间明细</h2>
+      <span id="room-summary">暂无数据</span>
+    </div>
+    <div class="table-wrap" id="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>房间</th>
+            <th>房主</th>
+            <th>在线</th>
+            <th>已加入</th>
+            <th>上限</th>
+            <th>规则</th>
+          </tr>
+        </thead>
+        <tbody id="room-body"></tbody>
+      </table>
+    </div>
+    <div class="empty" id="empty-state">连接服务器后显示房间明细</div>
+  </section>
+
+  <section class="panel">
+    <div class="panel-head">
+      <h2>错误日志</h2>
+      <div class="head-actions">
+        <span id="log-summary">暂无数据</span>
+        <button class="small-btn" id="log-refresh-btn">刷新日志</button>
+      </div>
+    </div>
+    <pre class="log-box empty-log" id="log-content">连接服务器后显示错误日志</pre>
+  </section>
+</main>
+
+<script>
+const $ = id => document.getElementById(id);
+let timer = null;
+let currentBase = '';
+
+function esc(value) {
+  return String(value ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
+function normalizeBase(raw) {
+  return raw.trim().replace(/\/$/, '').replace(/^ws:\/\//, 'http://').replace(/^wss:\/\//, 'https://');
+}
+
+function defaultBase() {
+  if (window.location.protocol === 'http:' || window.location.protocol === 'https:') {
+    return window.location.origin;
+  }
+  return 'http://localhost:8787';
+}
+
+function formatBytes(bytes) {
+  if (!Number.isFinite(bytes)) return '--';
+  const units = ['B', 'KB', 'MB', 'GB'];
+  let value = bytes;
+  let unit = 0;
+  while (value >= 1024 && unit < units.length - 1) {
+    value /= 1024;
+    unit += 1;
+  }
+  return `${value >= 10 || unit === 0 ? value.toFixed(0) : value.toFixed(1)} ${units[unit]}`;
+}
+
+function formatDuration(seconds) {
+  if (!Number.isFinite(seconds)) return '';
+  const h = Math.floor(seconds / 3600);
+  const m = Math.floor((seconds % 3600) / 60);
+  const s = Math.floor(seconds % 60);
+  if (h > 0) return `${h}小时 ${m}分`;
+  if (m > 0) return `${m}分 ${s}秒`;
+  return `${s}秒`;
+}
+
+function setStatus(mode, text) {
+  const dot = $('status-dot');
+  dot.className = `dot${mode === 'on' ? ' on' : mode === 'warn' ? ' warn' : ''}`;
+  $('status-text').textContent = text;
+}
+
+function showError(message) {
+  const box = $('error-box');
+  box.style.display = message ? 'block' : 'none';
+  box.textContent = message || '';
+}
+
+function getLoadLevel(stats) {
+  const inFlight = Number(stats.inFlightRequests || 0);
+  const goroutines = Number(stats.goroutines || 0);
+  const score = inFlight * 12 + Math.max(0, goroutines - 4) * 2;
+  if (score >= 70) return { text: '高', className: 'high' };
+  if (score >= 32) return { text: '中', className: 'medium' };
+  return { text: '低', className: '' };
+}
+
+async function fetchStats() {
+  const res = await fetch(`${currentBase}/stats`, { cache: 'no-store' });
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  return res.json();
+}
+
+async function fetchErrorLog() {
+  const res = await fetch(`${currentBase}/logs/error`, { cache: 'no-store' });
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  return res.json();
+}
+
+async function refreshAll() {
+  if (!currentBase) return;
+  $('refresh-btn').disabled = true;
+  try {
+    const stats = await fetchStats();
+    renderStats(stats);
+    await refreshLog();
+    setStatus('on', `已连接 ${currentBase}`);
+    showError('');
+  } catch (err) {
+    setStatus('warn', '连接失败');
+    showError(`无法读取服务器状态：${err.message}`);
+  } finally {
+    $('refresh-btn').disabled = false;
+  }
+}
+
+async function refreshStats() {
+  if (!currentBase) return;
+  $('refresh-btn').disabled = true;
+  try {
+    const stats = await fetchStats();
+    renderStats(stats);
+    setStatus('on', `已连接 ${currentBase}`);
+    showError('');
+  } catch (err) {
+    setStatus('warn', '连接失败');
+    showError(`无法读取服务器状态：${err.message}`);
+  } finally {
+    $('refresh-btn').disabled = false;
+  }
+}
+
+async function refreshLog() {
+  if (!currentBase) return;
+  $('log-refresh-btn').disabled = true;
+  try {
+    const log = await fetchErrorLog();
+    renderLog(log);
+  } catch (err) {
+    renderLog({ error: `无法读取错误日志：${err.message}` });
+  } finally {
+    $('log-refresh-btn').disabled = false;
+  }
+}
+
+function renderStats(stats) {
+  const load = getLoadLevel(stats);
+  const loadCard = $('load-card');
+  loadCard.className = `metric load${load.className ? ` ${load.className}` : ''}`;
+  $('load-value').textContent = load.text;
+  $('load-note').textContent = `活跃请求 ${stats.inFlightRequests ?? 0} · Goroutine ${stats.goroutines ?? 0} · 累计请求 ${stats.totalRequests ?? 0}`;
+  $('room-count').textContent = stats.roomCount ?? 0;
+  $('online-count').textContent = stats.onlinePlayers ?? 0;
+  $('registered-note').textContent = `已加入匹配房间 ${stats.registeredPlayers ?? 0} 人`;
+  $('memory-value').textContent = formatBytes(stats.memoryAllocBytes);
+  $('runtime-note').textContent = `系统内存 ${formatBytes(stats.memorySysBytes)} · 堆占用 ${formatBytes(stats.memoryHeapInuseBytes)}`;
+  $('updated-at').textContent = `更新时间 ${new Date(stats.timestamp || Date.now()).toLocaleTimeString()}`;
+  $('uptime').textContent = `运行 ${formatDuration(Number(stats.uptimeSeconds || 0))}`;
+  renderRooms(stats.rooms || []);
+}
+
+function renderRooms(rooms) {
+  const body = $('room-body');
+  const empty = $('empty-state');
+  $('table-wrap').style.display = rooms.length ? 'block' : 'none';
+  empty.style.display = rooms.length ? 'none' : 'block';
+  empty.textContent = '当前没有房间';
+  $('room-summary').textContent = rooms.length ? `${rooms.length} 个房间` : '暂无房间';
+  body.innerHTML = rooms.map(room => {
+    const rules = [
+      room.limitPlayers ? `限制 ${room.maxPlayers} 人` : '不限制人数',
+      room.autoStartOnFull ? '满员自动开始' : '手动开始',
+      room.system ? '系统房间' : '玩家房间',
+    ];
+    return `
+      <tr>
+        <td><strong>${esc(room.name || room.code)}</strong><div class="mono muted">${esc(room.code)}</div></td>
+        <td>${esc(room.hostName || '-')}</td>
+        <td><span class="pill">${room.onlinePlayers ?? 0}</span></td>
+        <td>${room.registeredPlayers ?? 0}</td>
+        <td>${room.maxPlayers ?? 30}</td>
+        <td>${rules.map(r => `<span class="pill">${esc(r)}</span>`).join(' ')}</td>
+      </tr>`;
+  }).join('');
+}
+
+function renderLog(log) {
+  const box = $('log-content');
+  if (log.error) {
+    $('log-summary').textContent = '读取失败';
+    box.className = 'log-box empty-log';
+    box.textContent = log.error;
+    return;
+  }
+
+  if (!log.configured) {
+    $('log-summary').textContent = '未配置日志文件';
+    box.className = 'log-box empty-log';
+    box.textContent = '当前服务未配置错误日志文件';
+    return;
+  }
+
+  if (!log.exists) {
+    $('log-summary').textContent = `${log.path || '错误日志'} 尚未生成`;
+    box.className = 'log-box empty-log';
+    box.textContent = '暂时没有错误日志';
+    return;
+  }
+
+  const size = formatBytes(Number(log.sizeBytes || 0));
+  $('log-summary').textContent = `${log.path} · ${size}${log.truncated ? ' · 仅显示末尾' : ''}`;
+  const content = String(log.content || '').trimEnd();
+  box.className = content ? 'log-box' : 'log-box empty-log';
+  box.textContent = content || '暂时没有错误日志';
+  box.scrollTop = box.scrollHeight;
+}
+
+function connect() {
+  const base = normalizeBase($('server-url').value);
+  if (!base) {
+    showError('请填写服务器地址');
+    return;
+  }
+  currentBase = base;
+  $('server-url').value = base;
+  if (timer) clearInterval(timer);
+  setStatus('warn', `正在连接 ${base}`);
+  refreshAll();
+  timer = setInterval(refreshStats, 2000);
+}
+
+$('connect-btn').addEventListener('click', connect);
+$('refresh-btn').addEventListener('click', refreshAll);
+$('log-refresh-btn').addEventListener('click', refreshLog);
+$('server-url').addEventListener('keydown', event => {
+  if (event.key === 'Enter') connect();
+});
+
+$('server-url').value = defaultBase();
+connect();
+</script>
+</body>
+</html>

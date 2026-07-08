@@ -72,7 +72,6 @@ public class Plugin : BaseUnityPlugin
 
             BppLog.Info("Plugin", "Attaching runtime components");
             _composition.Mountables.MountAll(gameObject, services);
-            BppNativeTournamentRoomWatcher.Ensure(gameObject);
             BppLog.Info("Plugin", "Runtime components attached");
 
             BppLog.Info("Plugin", "Plugin initialization completed");

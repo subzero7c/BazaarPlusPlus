@@ -76,6 +76,13 @@
     </Reference>
   </ItemGroup>
 
+  <ItemGroup>
+    <EmbeddedResource
+      Include="..\..\..\bazaarplusplus-mod\src\BazaarPlusPlus\Resources\Fonts\LXGWWenKai-Regular.ttf"
+      LogicalName="BazaarPlusPlus.JbsServer.Resources.Fonts.LXGWWenKai-Regular.ttf"
+    />
+  </ItemGroup>
+
   <!-- Publicize only game assemblies, not BepInEx (avoids CS0229 duplicates) -->
   <ItemGroup>
     <Publicize Include="Assembly-CSharp" />

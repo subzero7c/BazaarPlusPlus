@@ -1,0 +1,670 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>BazaarPlusPlus 锦标赛聊天室</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    background: #16161a; color: #e0e0e4;
+    height: 100dvh; display: flex; align-items: center; justify-content: center;
+  }
+
+  /* ── 连接界面 ── */
+  #connect-screen {
+    background: #1e1e24; border: 1px solid #c2731a66; border-radius: 12px;
+    padding: 40px 48px; width: min(440px, 90vw);
+    display: flex; flex-direction: column; gap: 20px;
+  }
+  #connect-screen h1 { font-size: 22px; color: #f7d47d; text-align: center; font-weight: 700; }
+  #connect-screen p  { font-size: 13px; color: #8899aa; text-align: center; line-height: 1.5; }
+
+  .field { display: flex; flex-direction: column; gap: 6px; }
+  .field label { font-size: 13px; color: #9aaabb; }
+  .field input {
+    background: #111115; border: 1px solid #333344; border-radius: 6px;
+    color: #e8e8ec; font-size: 15px; padding: 10px 14px; outline: none;
+    transition: border-color .2s;
+  }
+  .field input:focus { border-color: #c2731a; }
+  .mono { font-family: "Courier New", monospace; letter-spacing: .5px; }
+  .err  { font-size: 13px; color: #e05555; text-align: center; min-height: 18px; }
+
+  .primary-btn {
+    background: #2d4f33; border: 1px solid #ffffff22; border-radius: 6px;
+    color: #fff; cursor: pointer; font-size: 16px; padding: 12px;
+    transition: background .15s;
+  }
+  .primary-btn:hover    { background: #376040; }
+  .primary-btn:disabled { background: #2a2a32; color: #666; cursor: default; }
+
+  /* ── 公共卡片容器 ── */
+  .card {
+    display: none; flex-direction: column; overflow: hidden;
+    width: min(820px, 98vw); height: min(640px, 94dvh);
+    background: #17171c; border: 1px solid #c2731a55; border-radius: 12px;
+  }
+  .top-bar {
+    background: #211e15; padding: 10px 20px;
+    display: flex; align-items: center; gap: 12px;
+    border-bottom: 1px solid #2a2a32; flex-shrink: 0;
+  }
+  .tb-title { flex: 1; font-size: 16px; font-weight: 700; color: #f7d47d; }
+  .tb-sub   { font-size: 12px; color: #6a8fa8; font-family: "Courier New", monospace; margin-top: 2px; }
+
+  .icon-btn {
+    background: #2a2a36; border: 1px solid #ffffff1a; border-radius: 5px;
+    color: #c0c8d8; cursor: pointer; font-size: 13px; padding: 7px 14px;
+    transition: background .15s; white-space: nowrap;
+  }
+  .icon-btn:hover { background: #383848; }
+
+  /* ── 房间列表界面 ── */
+  #lobby-search {
+    display: flex; gap: 8px; padding: 12px 16px;
+    border-bottom: 1px solid #222228; flex-shrink: 0;
+  }
+  #lobby-search input {
+    flex: 1; background: #1a1a22; border: 1px solid #333344; border-radius: 6px;
+    color: #e8e8ec; font-size: 14px; padding: 8px 12px; outline: none;
+    transition: border-color .2s;
+  }
+  #lobby-search input:focus { border-color: #c2731a; }
+
+  #lobby-create {
+    border-bottom: 1px solid #222228; padding: 12px 16px;
+    display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(110px, .8fr) auto;
+    gap: 8px; align-items: center; flex-shrink: 0;
+  }
+  #lobby-create input {
+    background: #1a1a22; border: 1px solid #333344; border-radius: 6px;
+    color: #e8e8ec; font-size: 14px; padding: 8px 12px; outline: none;
+    transition: border-color .2s;
+  }
+  #lobby-create input:focus { border-color: #c2731a; }
+  #create-code {
+    font-family: "Courier New", monospace; letter-spacing: 1px; text-transform: uppercase;
+  }
+  #create-max-players {
+    font-family: "Courier New", monospace;
+  }
+  #lobby-create-options {
+    grid-column: 1 / -1; display: flex; gap: 14px; align-items: center;
+    color: #a8b2c0; font-size: 13px; flex-wrap: wrap;
+  }
+  #lobby-create-options label { display: inline-flex; align-items: center; gap: 6px; }
+  #lobby-create-options input[type="checkbox"] { accent-color: #c2731a; }
+  #lobby-create-options input[type="number"] {
+    width: 70px; background: #1a1a22; border: 1px solid #333344; border-radius: 6px;
+    color: #e8e8ec; font-size: 14px; padding: 6px 8px; outline: none;
+  }
+  .create-btn {
+    background: #2d4f33; border: 1px solid #ffffff1a; border-radius: 5px;
+    color: #d8f0dc; cursor: pointer; font-size: 13px; padding: 8px 18px;
+    transition: background .15s; white-space: nowrap;
+  }
+  .create-btn:hover    { background: #376040; }
+  .create-btn:disabled { background: #2a2a32; color: #555; cursor: default; }
+
+  #room-list-wrap {
+    flex: 1; overflow-y: auto; padding: 8px 12px;
+    display: flex; flex-direction: column; gap: 6px;
+  }
+  .room-row {
+    background: #1e1e26; border: 1px solid #2a2a36; border-radius: 8px;
+    padding: 12px 16px; display: flex; align-items: center; gap: 12px;
+    transition: border-color .15s;
+  }
+  .room-row:hover { border-color: #c2731a55; }
+  .rr-info { flex: 1; min-width: 0; }
+  .rr-name {
+    font-size: 15px; font-weight: 600; color: #ececf0;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .rr-meta { font-size: 12px; color: #6a8fa8; margin-top: 3px; font-family: "Courier New", monospace; }
+  .rr-options { font-size: 12px; color: #b39b66; margin-top: 3px; }
+  .rr-count { font-size: 14px; font-weight: 700; white-space: nowrap; }
+  .rr-count.full { color: #e05555; }
+  .rr-count.ok   { color: #78bb88; }
+  .join-btn {
+    background: #2d4065; border: 1px solid #ffffff1a; border-radius: 5px;
+    color: #c8d8f0; cursor: pointer; font-size: 13px; padding: 8px 18px;
+    transition: background .15s; white-space: nowrap;
+  }
+  .join-btn:hover    { background: #384e80; }
+  .join-btn:disabled { background: #2a2a32; color: #555; cursor: default; }
+
+  .empty-hint { color: #445566; font-size: 14px; text-align: center; margin: auto; padding: 40px; }
+
+  #lobby-manual {
+    border-top: 1px solid #222228; padding: 12px 16px;
+    display: flex; gap: 8px; align-items: center; flex-shrink: 0;
+  }
+  #lobby-manual span { font-size: 13px; color: #8899aa; white-space: nowrap; }
+  #manual-code {
+    flex: 1; background: #1a1a22; border: 1px solid #333344; border-radius: 6px;
+    color: #e8e8ec; font-size: 14px; padding: 8px 12px; outline: none;
+    font-family: "Courier New", monospace; letter-spacing: 1px; text-transform: uppercase;
+    transition: border-color .2s;
+  }
+  #manual-code:focus { border-color: #c2731a; }
+
+  @media (max-width: 620px) {
+    #lobby-create { grid-template-columns: 1fr; }
+  }
+
+  /* ── 聊天界面 ── */
+  #status-dot { width: 8px; height: 8px; border-radius: 50%; background: #aa5555; flex-shrink: 0; }
+  #status-dot.on { background: #55aa66; }
+
+  #chat-body { display: flex; flex: 1; overflow: hidden; }
+
+  #player-panel {
+    width: 160px; flex-shrink: 0;
+    background: #111116; border-right: 1px solid #222228;
+    display: flex; flex-direction: column;
+  }
+  #player-panel h3 {
+    font-size: 11px; color: #c2731a; font-weight: 700; letter-spacing: .5px;
+    padding: 10px 14px 8px; border-bottom: 1px solid #1e1e26; text-transform: uppercase;
+  }
+  #player-list { flex: 1; overflow-y: auto; padding: 4px 0; }
+  .player-row { font-size: 13px; padding: 5px 14px; color: #c0c0c8; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .player-row.self { color: #f7d47d; font-weight: 600; }
+
+  #messages { flex: 1; overflow-y: auto; padding: 10px 14px; display: flex; flex-direction: column; gap: 3px; }
+  .msg { font-size: 14px; line-height: 1.5; word-break: break-word; }
+  .msg .sender { font-weight: 600; margin-right: 6px; }
+  .msg.self  .sender { color: #f7d47d; }
+  .msg.other .sender { color: #88bbdd; }
+  .msg.system { color: #778899; font-style: italic; font-size: 13px; }
+
+  #chat-footer {
+    display: flex; gap: 8px; padding: 10px 14px;
+    border-top: 1px solid #222228; background: #111116; flex-shrink: 0;
+    position: relative;
+  }
+  #msg-input {
+    flex: 1; background: #1a1a22; border: 1px solid #333344; border-radius: 6px;
+    color: #e8e8ec; font-size: 15px; padding: 9px 12px; outline: none;
+    transition: border-color .2s;
+  }
+  #msg-input:focus { border-color: #c2731a; }
+  #emoji-btn {
+    background: #2a2a36; border: 1px solid #ffffff1a; border-radius: 6px;
+    color: #c0c8d8; cursor: pointer; font-size: 18px; padding: 9px 14px;
+    transition: background .15s; user-select: none;
+  }
+  #emoji-btn:hover { background: #383848; }
+  #emoji-btn:disabled { background: #2a2a32; color: #555; cursor: default; }
+  #send-btn {
+    background: #38507a; border: 1px solid #ffffff1a; border-radius: 6px;
+    color: #fff; cursor: pointer; font-size: 15px; padding: 9px 22px;
+    transition: background .15s; white-space: nowrap;
+  }
+  #send-btn:hover    { background: #445f8e; }
+  #send-btn:disabled { background: #2a2a32; color: #555; cursor: default; }
+
+  #emoji-picker {
+    display: none; position: absolute; bottom: 60px; right: 14px;
+    background: #1e1e26; border: 1px solid #c2731a55; border-radius: 8px;
+    width: 320px; max-height: 280px; overflow-y: auto;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.4);
+  }
+  #emoji-picker.show { display: block; }
+  .emoji-category { padding: 8px 12px; }
+  .emoji-category-title {
+    font-size: 11px; color: #c2731a; font-weight: 700; letter-spacing: .5px;
+    text-transform: uppercase; margin-bottom: 6px;
+  }
+  .emoji-grid {
+    display: grid; grid-template-columns: repeat(8, 1fr); gap: 4px;
+  }
+  .emoji-item {
+    font-size: 24px; padding: 6px; cursor: pointer; text-align: center;
+    border-radius: 4px; transition: background .1s; user-select: none;
+  }
+  .emoji-item:hover { background: #2a2a36; }
+
+  ::-webkit-scrollbar { width: 4px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: #333344; border-radius: 2px; }
+</style>
+</head>
+<body>
+
+<!-- ① 连接界面 -->
+<div id="connect-screen">
+  <h1>🏆 锦标赛聊天室</h1>
+  <p>连接服务器后查看并加入当前所有房间</p>
+  <div class="field">
+    <label>服务器地址</label>
+    <input id="input-server" class="mono" type="text" value="ws://localhost:8787" placeholder="ws://host:8787">
+  </div>
+  <div class="field">
+    <label>你的名字</label>
+    <input id="input-name" type="text" maxlength="20" placeholder="观众">
+  </div>
+  <div class="err" id="connect-err"></div>
+  <button class="primary-btn" id="connect-btn">连接并获取房间列表</button>
+</div>
+
+<!-- ② 房间列表界面 -->
+<div class="card" id="lobby-screen">
+  <div class="top-bar">
+    <div style="flex:1">
+      <div class="tb-title">锦标赛房间列表</div>
+      <div class="tb-sub" id="lobby-server-label"></div>
+    </div>
+    <button class="icon-btn" id="refresh-btn">↺ 刷新</button>
+    <button class="icon-btn" id="disconnect-btn">断开</button>
+  </div>
+
+  <div id="lobby-search">
+    <input id="search-input" type="text" placeholder="搜索房间名称…">
+  </div>
+
+  <div id="lobby-create">
+    <input id="create-name" type="text" maxlength="40" placeholder="房间名称">
+    <input id="create-code" type="text" maxlength="6" placeholder="房间码 ABC123">
+    <button class="create-btn" id="create-room-btn">创建并进入</button>
+    <div id="lobby-create-options">
+      <label><input id="create-limit-players" type="checkbox" checked> 限制人数</label>
+      <label>最大人数 <input id="create-max-players" type="number" min="1" max="30" value="30"></label>
+      <label><input id="create-auto-start" type="checkbox"> 满员自动开始</label>
+    </div>
+  </div>
+
+  <div id="room-list-wrap">
+    <div class="empty-hint" id="empty-hint">暂无房间，等待游戏内玩家创建…</div>
+  </div>
+
+  <div id="lobby-manual">
+    <span>手动输入房间码：</span>
+    <input id="manual-code" type="text" maxlength="6" placeholder="ABC123">
+    <button class="join-btn" id="manual-join-btn">加入</button>
+  </div>
+</div>
+
+<!-- ③ 聊天界面 -->
+<div class="card" id="chat-screen">
+  <div class="top-bar">
+    <div id="status-dot"></div>
+    <div style="flex:1">
+      <div class="tb-title" id="chat-room-name">—</div>
+      <div class="tb-sub"   id="chat-room-code"></div>
+    </div>
+    <button class="icon-btn" id="back-btn">← 返回大厅</button>
+  </div>
+  <div id="chat-body">
+    <div id="player-panel">
+      <h3>玩家 <span id="player-count">0</span></h3>
+      <div id="player-list"></div>
+    </div>
+    <div id="messages"></div>
+  </div>
+  <div id="chat-footer">
+    <input id="msg-input" type="text" placeholder="输入消息，按 Enter 发送…" maxlength="500" disabled>
+    <button id="emoji-btn" disabled title="表情">😊</button>
+    <button id="send-btn" disabled>发送</button>
+    <div id="emoji-picker">
+      <div class="emoji-category">
+        <div class="emoji-category-title">表情</div>
+        <div class="emoji-grid">😀😁😂🤣😃😄😅😆😉😊😋😎😍🥰😘😗😙😚🙂🤗🤩🤔🤨😐😑😶🙄😏😣😥😮🤐😯😪😫🥱😴😌😛😜😝🤤😒😓😔😕🙃🤑😲🙁😖😞😟😤😢😭😦😧😨😩🤯😬🥺😱😠😡🤬😳🤪😵🥴😇🥳🤠🤧🤒🤕🤢🤮🥵🥶😷🤡👻💀☠️👽🤖😈👿</div>
+      </div>
+      <div class="emoji-category">
+        <div class="emoji-category-title">手势</div>
+        <div class="emoji-grid">👍👎👌🤌🤏✌️🤞🤟🤘🤙👈👉👆🖕👇☝️👋🤚🖐️✋🖖💪🦾👏🙌🤜🤛✊👊🤝🙏💅🤳</div>
+      </div>
+      <div class="emoji-category">
+        <div class="emoji-category-title">游戏 &amp; 活动</div>
+        <div class="emoji-grid">🏆🥇🥈🥉🎯🎲🎮🕹️🃏🀄🎪🎭🎨🎬🎤🎧🎵🎶🎹🥁🎷🎸🎺⚔️🛡️🏹💣💥🔥⚡🌟✨💫⭐🌈🎉🎊🎁🎀🚀💎👑🔑🔮🪄🧿</div>
+      </div>
+      <div class="emoji-category">
+        <div class="emoji-category-title">符号</div>
+        <div class="emoji-grid">❤️🧡💛💚💙💜🖤🤍🤎💔❣️💕💞💓💗💖💘💝✅❌❎🔴🟠🟡🟢🔵🟣⚫⚪🟤💯🔥❗❓</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ── 状态 ─────────────────────────────────────────
+let serverBase = '', httpBase = '', myName = '', myUserId = '';
+let ws = null, allRooms = [], players = [];
+
+// ── 工具 ─────────────────────────────────────────
+const $ = id => document.getElementById(id);
+function esc(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+function showScreen(name) {
+  $('connect-screen').style.display = name === 'connect' ? 'flex' : 'none';
+  $('lobby-screen').style.display   = name === 'lobby'   ? 'flex' : 'none';
+  $('chat-screen').style.display    = name === 'chat'    ? 'flex' : 'none';
+}
+
+// ── ① 连接 ───────────────────────────────────────
+$('connect-btn').addEventListener('click', doConnect);
+$('input-server').addEventListener('keydown', e => e.key === 'Enter' && doConnect());
+
+async function doConnect() {
+  const raw = $('input-server').value.trim();
+  myName = $('input-name').value.trim() || '观众';
+  $('connect-err').textContent = '';
+  if (!raw) { $('connect-err').textContent = '请填写服务器地址'; return; }
+
+  serverBase = raw.replace(/\/$/, '');
+  httpBase   = serverBase.replace(/^wss?:\/\//, m => m === 'wss://' ? 'https://' : 'http://');
+
+  $('connect-btn').disabled = true;
+  $('connect-btn').textContent = '连接中…';
+  try {
+    const rooms = await fetchRooms();
+    allRooms = rooms;
+    $('lobby-server-label').textContent = serverBase;
+    renderRoomList(rooms);
+    showScreen('lobby');
+  } catch(e) {
+    $('connect-err').textContent = '连接失败：' + e.message;
+  } finally {
+    $('connect-btn').disabled = false;
+    $('connect-btn').textContent = '连接并获取房间列表';
+  }
+}
+
+// ── ② 房间列表 ───────────────────────────────────
+$('refresh-btn').addEventListener('click', async () => {
+  try { allRooms = await fetchRooms(); renderRoomList(applySearch(allRooms)); }
+  catch(e) { console.warn('Refresh failed', e); }
+});
+$('disconnect-btn').addEventListener('click', () => { allRooms = []; showScreen('connect'); });
+$('search-input').addEventListener('input', e => renderRoomList(applySearch(allRooms, e.target.value)));
+
+$('manual-code').addEventListener('input', e => {
+  e.target.value = normalizeRoomCodeInput(e.target.value);
+});
+$('manual-join-btn').addEventListener('click', () => {
+  const code = $('manual-code').value.trim();
+  if (code.length !== 6) { alert('房间码必须是 6 位'); return; }
+  joinRoom(code, code);
+});
+$('manual-code').addEventListener('keydown', e => e.key === 'Enter' && $('manual-join-btn').click());
+
+$('create-code').addEventListener('input', e => {
+  e.target.value = normalizeRoomCodeInput(e.target.value);
+});
+$('create-limit-players').addEventListener('change', e => {
+  $('create-max-players').disabled = !e.target.checked;
+});
+$('create-room-btn').addEventListener('click', createRoom);
+$('create-name').addEventListener('keydown', e => e.key === 'Enter' && createRoom());
+$('create-code').addEventListener('keydown', e => e.key === 'Enter' && createRoom());
+
+function normalizeRoomCodeInput(value) {
+  return value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 6);
+}
+
+async function fetchRooms() {
+  const res = await fetch(`${httpBase}/rooms`);
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  return res.json(); // [{code,name,hostName,playerCount,maxPlayers}]
+}
+
+function applySearch(rooms, q = '') {
+  if (!q.trim()) return rooms;
+  const lq = q.toLowerCase();
+  return rooms.filter(r => r.name.toLowerCase().includes(lq) || r.code.toLowerCase().includes(lq));
+}
+
+function renderRoomList(rooms) {
+  const wrap = $('room-list-wrap');
+  wrap.querySelectorAll('.room-row').forEach(el => el.remove());
+  $('empty-hint').style.display = rooms.length ? 'none' : '';
+  rooms.forEach(room => {
+    const full = room.playerCount >= room.maxPlayers;
+    const div = document.createElement('div');
+    div.className = 'room-row';
+    div.innerHTML = `
+      <div class="rr-info">
+        <div class="rr-name">${esc(room.name)}</div>
+        <div class="rr-meta">房间码: ${esc(room.code)} · 房主: ${esc(room.hostName || '—')}</div>
+        <div class="rr-options">${esc(formatRoomOptions(room))}</div>
+      </div>
+      <div class="rr-count ${full?'full':'ok'}">${room.playerCount}/${room.maxPlayers}</div>
+      <button class="join-btn"${full?' disabled':''}>加入</button>`;
+    div.querySelector('button').addEventListener('click', () => joinRoom(room.code, room.name));
+    wrap.appendChild(div);
+  });
+}
+
+function formatRoomOptions(room) {
+  const limit = room.limitPlayers ? `限制 ${room.maxPlayers} 人` : '不限制人数';
+  const auto = room.autoStartOnFull ? '满员自动开始' : '手动开始';
+  return `${limit} · ${auto}`;
+}
+
+// ── 加入房间 → 聊天 ──────────────────────────────
+async function joinRoom(code, roomName) {
+  return joinOrCreateRoom(code, roomName, '');
+}
+
+async function createRoom() {
+  const roomName = $('create-name').value.trim();
+  const code = $('create-code').value.trim();
+  const limitPlayers = $('create-limit-players').checked;
+  const maxPlayers = Number.parseInt($('create-max-players').value, 10);
+  const autoStartOnFull = $('create-auto-start').checked;
+  if (!roomName) { alert('请填写房间名称'); return; }
+  if (code.length !== 6) { alert('房间码必须是 6 位'); return; }
+  if (limitPlayers && (!Number.isInteger(maxPlayers) || maxPlayers < 1 || maxPlayers > 30)) {
+    alert('最大人数必须是 1 到 30');
+    return;
+  }
+
+  const existing = allRooms.find(room => room.code.toUpperCase() === code.toUpperCase());
+  if (existing) {
+    if (!confirm(`房间码 ${code} 已存在，要加入现有房间“${existing.name}”吗？`))
+      return;
+
+    await joinOrCreateRoom(code, existing.name, '');
+    return;
+  }
+
+  await joinOrCreateRoom(code, roomName, roomName, {
+    limitPlayers,
+    maxPlayers: limitPlayers ? maxPlayers : 30,
+    autoStartOnFull,
+  });
+}
+
+async function joinOrCreateRoom(code, roomName, createRoomName, options = {}) {
+  const button = createRoomName ? $('create-room-btn') : null;
+  try {
+    if (button) {
+      button.disabled = true;
+      button.textContent = '创建中…';
+    }
+    const res = await fetch(`${httpBase}/match/join`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        code,
+        name: myName,
+        roomName: createRoomName,
+        limitPlayers: options.limitPlayers === true,
+        maxPlayers: options.maxPlayers || 30,
+        autoStartOnFull: options.autoStartOnFull === true,
+      }),
+    });
+    const data = await res.json();
+    if (!res.ok) { alert('加入失败：' + (data.error || res.status)); return; }
+    myUserId = data.userId;
+    openChat(data.chatUrl, code, roomName || code);
+  } catch(e) {
+    alert('连接失败：' + e.message);
+  } finally {
+    if (button) {
+      button.disabled = false;
+      button.textContent = '创建并进入';
+    }
+  }
+}
+
+function openChat(chatUrl, code, roomName) {
+  ws = new WebSocket(chatUrl);
+  ws.onopen = () => {
+    $('status-dot').className = 'on';
+    $('chat-room-name').textContent = roomName;
+    $('chat-room-code').textContent = '房间码：' + code;
+    $('messages').innerHTML = '';
+    $('player-list').innerHTML = '';
+    players = [];
+    addPlayer(myUserId, myName);
+    renderPlayers();
+    $('msg-input').disabled = false;
+    $('send-btn').disabled  = false;
+    $('emoji-btn').disabled = false;
+    showScreen('chat');
+    $('msg-input').focus();
+  };
+  ws.onmessage = e => { try { handleMsg(JSON.parse(e.data)); } catch(_) { appendSystem('收到无法解析的消息'); } };
+  ws.onclose   = () => {
+    $('status-dot').className = '';
+    appendSystem('连接已断开');
+    $('msg-input').disabled = true;
+    $('send-btn').disabled  = true;
+    $('emoji-btn').disabled = true;
+    $('emoji-picker').classList.remove('show');
+  };
+}
+
+// ── ③ 聊天 ───────────────────────────────────────
+$('back-btn').addEventListener('click', () => {
+  if (ws && ws.readyState === WebSocket.OPEN) ws.close();
+  ws = null; players = [];
+  fetchRooms().then(r => { allRooms = r; renderRoomList(r); }).catch(()=>{});
+  showScreen('lobby');
+});
+
+function handleMsg(msg) {
+  switch (msg.type) {
+    case 'welcome':
+      appendSystem(`已连接到房间 ${msg.roomCode}（${msg.count}/${msg.max} 人）`);
+      break;
+    case 'join':
+      addPlayer(msg.userId, msg.name); renderPlayers();
+      appendSystem(`${msg.name} 加入了房间`);
+      break;
+    case 'leave':
+      removePlayer(msg.userId); renderPlayers();
+      appendSystem(`${msg.name} 离开了房间`);
+      break;
+    case 'chat':
+      appendChat(msg.userId, msg.name, msg.text);
+      break;
+    case 'history':
+      (msg.messages || []).forEach(m => appendChat(m.userId, m.name, m.text));
+      break;
+    case 'error':
+      appendSystem('错误：' + msg.message);
+      break;
+  }
+}
+
+function addPlayer(uid, name) { if (!players.find(p => p.userId === uid)) players.push({userId:uid,name}); }
+function removePlayer(uid)    { players = players.filter(p => p.userId !== uid); }
+function renderPlayers() {
+  $('player-count').textContent = players.length;
+  $('player-list').innerHTML = players.map(p => {
+    const s = p.userId === myUserId;
+    return `<div class="player-row${s?' self':''}">${esc(p.name)}${s?'（我）':''}</div>`;
+  }).join('');
+}
+
+function appendChat(uid, name, text) {
+  const el = document.createElement('div');
+  el.className = 'msg ' + (uid === myUserId ? 'self' : 'other');
+  el.innerHTML = `<span class="sender">${esc(name)}:</span>${esc(text)}`;
+  $('messages').appendChild(el);
+  scrollBottom();
+}
+function appendSystem(text) {
+  const el = document.createElement('div');
+  el.className = 'msg system';
+  el.textContent = text;
+  $('messages').appendChild(el);
+  scrollBottom();
+}
+function scrollBottom() { const m = $('messages'); m.scrollTop = m.scrollHeight; }
+
+$('send-btn').addEventListener('click', sendMsg);
+$('msg-input').addEventListener('keydown', e => e.key === 'Enter' && sendMsg());
+function sendMsg() {
+  const text = $('msg-input').value.trim();
+  if (!text || !ws || ws.readyState !== WebSocket.OPEN) return;
+  ws.send(JSON.stringify({ type: 'chat', text }));
+  $('msg-input').value = '';
+}
+
+// ── 表情选择器 ────────────────────────────────────
+(function initEmojiPicker() {
+  const EMOJIS = {
+    '表情': ['😀','😁','😂','🤣','😃','😄','😅','😆','😉','😊','😋','😎','😍','🥰','😘','😗','😙','😚','🙂','🤗','🤩','🤔','🤨','😐','😑','😶','🙄','😏','😣','😥','😮','🤐','😯','😪','😫','🥱','😴','😌','😛','😜','😝','🤤','😒','😓','😔','😕','🙃','🤑','😲','🙁','😖','😞','😟','😤','😢','😭','😦','😧','😨','😩','🤯','😬','🥺','😱','😠','😡','🤬','😳','🤪','😵','🥴','😇','🥳','🤠','🤧','🤒','🤕','🤢','🤮','🥵','🥶','😷','🤡','👻','💀','☠️','👽','🤖','😈','👿'],
+    '手势': ['👍','👎','👌','🤌','🤏','✌️','🤞','🤟','🤘','🤙','👈','👉','👆','🖕','👇','☝️','👋','🤚','🖐️','✋','🖖','💪','🦾','👏','🙌','🤜','🤛','✊','👊','🤝','🙏','💅','🤳'],
+    '游戏 & 活动': ['🏆','🥇','🥈','🥉','🎯','🎲','🎮','🕹️','🃏','🀄','🎪','🎭','🎨','🎬','🎤','🎧','🎵','🎶','🎹','🥁','🎷','🎸','🎺','⚔️','🛡️','🏹','💣','💥','🔥','⚡','🌟','✨','💫','⭐','🌈','🎉','🎊','🎁','🎀','🚀','💎','👑','🔑','🔮','🪄','🧿'],
+    '符号': ['❤️','🧡','💛','💚','💙','💜','🖤','🤍','🤎','💔','❣️','💕','💞','💓','💗','💖','💘','💝','✅','❌','❎','🔴','🟠','🟡','🟢','🔵','🟣','⚫','⚪','🟤','💯','🔥','❗','❓'],
+  };
+  const picker = $('emoji-picker');
+  picker.innerHTML = '';
+  for (const [cat, list] of Object.entries(EMOJIS)) {
+    const sec = document.createElement('div');
+    sec.className = 'emoji-category';
+    const title = document.createElement('div');
+    title.className = 'emoji-category-title';
+    title.textContent = cat;
+    const grid = document.createElement('div');
+    grid.className = 'emoji-grid';
+    list.forEach(em => {
+      const span = document.createElement('span');
+      span.className = 'emoji-item';
+      span.textContent = em;
+      grid.appendChild(span);
+    });
+    sec.appendChild(title);
+    sec.appendChild(grid);
+    picker.appendChild(sec);
+  }
+})();
+
+$('emoji-btn').addEventListener('click', (e) => {
+  e.stopPropagation();
+  $('emoji-picker').classList.toggle('show');
+});
+
+document.addEventListener('click', (e) => {
+  const picker = $('emoji-picker');
+  if (!picker.contains(e.target) && e.target !== $('emoji-btn')) {
+    picker.classList.remove('show');
+  }
+});
+
+$('emoji-picker').addEventListener('click', (e) => {
+  if (e.target.classList.contains('emoji-item')) {
+    const emoji = e.target.textContent;
+    const input = $('msg-input');
+    const start = input.selectionStart;
+    const end = input.selectionEnd;
+    input.value = input.value.substring(0, start) + emoji + input.value.substring(end);
+    input.selectionStart = input.selectionEnd = start + emoji.length;
+    input.focus();
+    $('emoji-picker').classList.remove('show');
+  }
+});
+
+showScreen('connect');
+</script>
+</body>
+</html>

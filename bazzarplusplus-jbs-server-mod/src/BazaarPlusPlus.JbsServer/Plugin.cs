@@ -5,6 +5,7 @@ using BepInEx;
 using BepInEx.Configuration;
 using BepInEx.Logging;
 using BazaarPlusPlus.JbsServer.Diagnostics;
+using BazaarPlusPlus.JbsServer.Game.Testing;
 using BazaarPlusPlus.JbsServer.Game.TournamentRoom;
 using HarmonyLib;
 
@@ -25,6 +26,8 @@ public sealed class Plugin : BaseUnityPlugin
             JbsConfig.Initialize(Config);
             JbsLocalization.Initialize(System.IO.Path.GetDirectoryName(Info.Location));
             TournamentTitleToggleController.Ensure(gameObject);
+            TournamentChatButtonController.Ensure(gameObject);
+            ShopClickBlockerToggleController.Ensure(gameObject);
             TournamentRoomAutoCloseController.Ensure(gameObject);
             JbsNativeTournamentRoomWatcher.Ensure(gameObject);
             TournamentUiControlDumper.Ensure(

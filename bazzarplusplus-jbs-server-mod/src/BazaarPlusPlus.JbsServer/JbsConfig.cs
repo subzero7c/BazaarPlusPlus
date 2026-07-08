@@ -8,15 +8,16 @@ internal static class JbsConfig
 {
     private static ConfigEntry<bool>? _enabled;
     private static ConfigEntry<string>? _serverWsUrl;
-    private static ConfigEntry<bool>? _showDebugTestButton;
+    private static ConfigEntry<bool>? _blockShopClicksTestMode;
 
     internal static string ServerWsUrl => _serverWsUrl?.Value ?? "ws://localhost:8787";
 
     internal static bool Enabled => _enabled?.Value ?? true;
 
-    internal static bool ShowDebugTestButton => _showDebugTestButton?.Value ?? false;
+    internal static bool BlockShopClicksTestMode => _blockShopClicksTestMode?.Value ?? false;
 
     internal static event Action<bool>? EnabledChanged;
+    internal static event Action<bool>? BlockShopClicksTestModeChanged;
 
     internal static void Initialize(ConfigFile config)
     {
@@ -34,14 +35,16 @@ internal static class JbsConfig
             "JBS 服务器 WebSocket 地址 / JBS server WebSocket base URL"
         );
 
-        _showDebugTestButton = config.Bind(
-            "TournamentRoom",
-            "ShowDebugTestButton",
+        _blockShopClicksTestMode = config.Bind(
+            "Testing",
+            "BlockShopClicksInGame",
             false,
-            "是否在锦标赛界面显示测试填码按钮 / Show debug test-fill button on tournament screen"
+            "测试功能：游戏中屏蔽进入商店的点击 / Test: block in-game clicks that enter merchant shops"
         );
 
         _enabled.SettingChanged += (_, _) => EnabledChanged?.Invoke(_enabled.Value);
+        _blockShopClicksTestMode.SettingChanged += (_, _) =>
+            BlockShopClicksTestModeChanged?.Invoke(_blockShopClicksTestMode.Value);
     }
 
     internal static void SetEnabled(bool value)
@@ -50,5 +53,13 @@ internal static class JbsConfig
             return;
 
         _enabled.Value = value;
+    }
+
+    internal static void SetBlockShopClicksTestMode(bool value)
+    {
+        if (_blockShopClicksTestMode == null)
+            return;
+
+        _blockShopClicksTestMode.Value = value;
     }
 }

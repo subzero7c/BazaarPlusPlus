@@ -29,12 +29,13 @@ internal sealed class TournamentRoomPanel : MonoBehaviour
     private const float RoomListAutoRefreshInterval = 3f;
     private const string LogCategory = "TournamentPanel";
 
-    private static readonly Color PanelBackground = Rgba(0.08f, 0.10f, 0.13f, 0.99f);
-    private static readonly Color SectionBackground = Rgba(0.11f, 0.13f, 0.18f, 0.98f);
-    private static readonly Color FrameBackground = Rgba(0.09f, 0.11f, 0.15f, 0.96f);
-    private static readonly Color RowBackground = Rgba(0.11f, 0.14f, 0.18f, 0.98f);
-    private static readonly Color RowSelectedBackground = Rgba(0.17f, 0.24f, 0.32f, 0.99f);
-    private static readonly Color Border = Rgba(0.28f, 0.35f, 0.45f, 0.48f);
+    private static readonly Color PanelBackground = Rgba(0.07f, 0.075f, 0.09f, 0.99f);
+    private static readonly Color SectionBackground = Rgba(0.105f, 0.115f, 0.14f, 0.98f);
+    private static readonly Color FrameBackground = Rgba(0.055f, 0.065f, 0.08f, 0.97f);
+    private static readonly Color RowBackground = Rgba(0.12f, 0.13f, 0.15f, 0.98f);
+    private static readonly Color RowSelectedBackground = Rgba(0.18f, 0.24f, 0.20f, 0.99f);
+    private static readonly Color Border = Rgba(0.48f, 0.40f, 0.26f, 0.58f);
+    private static readonly Color StrongBorder = Rgba(0.86f, 0.68f, 0.36f, 0.72f);
     private static readonly Color TitleText = Rgba(0.97f, 0.85f, 0.57f, 1f);
     private static readonly Color BodyText = Rgba(0.88f, 0.92f, 0.97f, 0.96f);
     private static readonly Color MutedText = Rgba(0.68f, 0.74f, 0.82f, 0.92f);
@@ -47,6 +48,7 @@ internal sealed class TournamentRoomPanel : MonoBehaviour
     private static Font? _resolvedUiFont;
 
     private static TournamentRoomPanel? _instance;
+    private static bool _applicationQuitting;
 
     public static bool IsVisible =>
         _instance != null && _instance._visible && _instance._panelObject != null;
@@ -122,6 +124,7 @@ internal sealed class TournamentRoomPanel : MonoBehaviour
     private bool _roomListFetchInFlight;
     private float _nextRoomListAutoRefreshTime;
     private bool _panelBoundsInitialized;
+    private bool _panelBoundsUserAdjusted;
     private bool _isEdgeDocked;
     private bool _isDraggingPanel;
     private bool _isResizingPanel;
@@ -133,8 +136,6 @@ internal sealed class TournamentRoomPanel : MonoBehaviour
     private float _panelTop;
     private float _panelWidth = DefaultPanelWidth;
     private float _panelHeight = DefaultPanelHeight;
-    private float _savedPanelLeft;
-    private float _savedPanelTop;
 
     internal static void OpenFromDockButton(Transform? preferredSource = null)
     {
@@ -142,7 +143,8 @@ internal sealed class TournamentRoomPanel : MonoBehaviour
         if (_instance != null
             && preferredCanvas != null
             && _instance._panelObject != null
-            && _instance._panelObject.GetComponentInParent<Canvas>() != preferredCanvas)
+            && _instance._panelObject.GetComponentInParent<Canvas>() != preferredCanvas
+            && !_instance.HasActiveChatRoom())
         {
             JbsLog.Info(LogCategory, $"Recreating panel on active canvas '{preferredCanvas.name}'");
             Destroy(_instance._panelObject);
@@ -164,6 +166,14 @@ internal sealed class TournamentRoomPanel : MonoBehaviour
     }
 
     internal static void Close() => _instance?.SetVisible(false);
+
+    internal static void LeaveForNativeLobbyCancelled()
+    {
+        if (_instance == null || _instance._currentRoom == null)
+            return;
+
+        _instance.LeaveRoomAndReturnToList("Native lobby cancel clicked");
+    }
 
     internal static void HideForGameStarted()
     {
@@ -299,12 +309,20 @@ internal sealed class TournamentRoomPanel : MonoBehaviour
 
     private void OnEnable() => _instance ??= this;
 
+    private void OnApplicationQuit()
+    {
+        _applicationQuitting = true;
+    }
+
     private void OnDestroy()
     {
         if (_instance == this)
             _instance = null;
         if (_panelSettings != null)
             Destroy(_panelSettings);
+        if (!_applicationQuitting)
+            return;
+
         BppTournamentRoomBridgeClient.LeaveRoom();
         var client = _chatClient;
         _chatClient = null;
@@ -373,10 +391,19 @@ internal sealed class TournamentRoomPanel : MonoBehaviour
             JbsLog.Info(LogCategory, "Showing UI Toolkit tournament room panel.");
             BringToFront();
             ExitEdgeDockState();
+            if (!_panelBoundsUserAdjusted)
+                _panelBoundsInitialized = false;
             EnsurePanelBounds();
-            ShowRoomListView();
             HideCreateRoomOverlay();
-            RefreshRoomList();
+            if (HasActiveChatRoom())
+            {
+                ShowCurrentChatView();
+            }
+            else
+            {
+                ShowRoomListView();
+                RefreshRoomList();
+            }
         }
         else
         {
@@ -385,8 +412,6 @@ internal sealed class TournamentRoomPanel : MonoBehaviour
             _pendingJoinFailure = null;
             _joinInFlight = false;
             ExitEdgeDockState();
-            _ = LeaveAndDisconnectAsync(notifyServer: true);
-            LeaveCurrentRoomState();
         }
     }
 
@@ -436,6 +461,21 @@ internal sealed class TournamentRoomPanel : MonoBehaviour
         BppTournamentRoomBridgeClient.EnterRoom(room.Id, room.Name);
         JbsLog.Info(LogCategory, $"Chat connected: room={room.Id}");
     }
+
+    private void ShowCurrentChatView()
+    {
+        _roomListView?.SetDisplay(false);
+        _chatView?.SetDisplay(true);
+        if (_headerTitle != null)
+            _headerTitle.text = JbsLocalization.Get("tournament.title");
+        RefreshHostControls();
+        RefreshChatToggleButtonLabel();
+        RefreshChatRoomHeader();
+        RebuildPlayerList();
+    }
+
+    private bool HasActiveChatRoom() =>
+        _currentRoom != null && _chatClient?.IsConnected == true;
 
     private void BeginJoinRoom(RoomEntry room)
     {
@@ -571,14 +611,20 @@ internal sealed class TournamentRoomPanel : MonoBehaviour
         shell.style.paddingBottom = 24f;
         shell.style.flexDirection = FlexDirection.Column;
         shell.style.backgroundColor = PanelBackground;
-        ApplyBorder(shell, Rgba(0.42f, 0.50f, 0.60f, 0.62f));
+        ApplyBorder(shell, StrongBorder, 2f);
+        ApplyRadius(shell, 6f);
         root.Add(shell);
 
         var header = new VisualElement();
-        header.style.height = 58f;
+        header.style.height = 64f;
         header.style.flexDirection = FlexDirection.Row;
         header.style.alignItems = Align.Center;
-        header.style.marginBottom = 14f;
+        header.style.marginBottom = 16f;
+        header.style.paddingLeft = 16f;
+        header.style.paddingRight = 12f;
+        header.style.backgroundColor = Rgba(0.13f, 0.10f, 0.07f, 0.92f);
+        ApplyBorder(header, Rgba(0.78f, 0.58f, 0.28f, 0.42f));
+        ApplyRadius(header, 4f);
         header.pickingMode = PickingMode.Position;
         shell.Add(header);
         RegisterPanelDrag(header);
@@ -612,6 +658,13 @@ internal sealed class TournamentRoomPanel : MonoBehaviour
         body.style.flexGrow = 1f;
         body.style.minHeight = 0f;
         body.style.flexDirection = FlexDirection.Column;
+        body.style.paddingLeft = 14f;
+        body.style.paddingRight = 14f;
+        body.style.paddingTop = 14f;
+        body.style.paddingBottom = 14f;
+        body.style.backgroundColor = SectionBackground;
+        ApplyBorder(body, Rgba(0.30f, 0.24f, 0.16f, 0.74f));
+        ApplyRadius(body, 4f);
         shell.Add(body);
 
         _roomListView = new VisualElement();
@@ -633,7 +686,6 @@ internal sealed class TournamentRoomPanel : MonoBehaviour
         BuildChatView(_chatView);
 
         BuildEdgeDockButton(root);
-        BuildCreateRoomOverlay(root);
 
         var resizeHandle = new VisualElement();
         resizeHandle.style.position = Position.Absolute;
@@ -646,6 +698,8 @@ internal sealed class TournamentRoomPanel : MonoBehaviour
         shell.Add(resizeHandle);
         AddResizeGripLines(resizeHandle);
         RegisterPanelResize(resizeHandle);
+
+        BuildCreateRoomOverlay(shell);
 
         root.RegisterCallback<GeometryChangedEvent>(_ => EnsurePanelBounds());
     }
@@ -729,8 +783,9 @@ internal sealed class TournamentRoomPanel : MonoBehaviour
         statusFrame.style.paddingLeft = 12f;
         statusFrame.style.paddingRight = 12f;
         statusFrame.style.justifyContent = Justify.Center;
-        statusFrame.style.backgroundColor = Rgba(0.16f, 0.20f, 0.26f, 0.72f);
-        ApplyBorder(statusFrame, Rgba(0.34f, 0.40f, 0.49f, 0.36f));
+        statusFrame.style.backgroundColor = Rgba(0.12f, 0.105f, 0.08f, 0.88f);
+        ApplyBorder(statusFrame, Rgba(0.70f, 0.52f, 0.25f, 0.46f));
+        ApplyRadius(statusFrame, 4f);
         parent.Add(statusFrame);
         _statusText = LabelText(JbsLocalization.Get("tournament.status.loading"), 14, BodyText);
         statusFrame.Add(_statusText);
@@ -739,7 +794,8 @@ internal sealed class TournamentRoomPanel : MonoBehaviour
         _roomListColumn.style.flexGrow = 1f;
         _roomListColumn.style.minHeight = 0f;
         _roomListColumn.style.backgroundColor = FrameBackground;
-        ApplyBorder(_roomListColumn, Border);
+        ApplyBorder(_roomListColumn, Border, 2f);
+        ApplyRadius(_roomListColumn, 4f);
         parent.Add(_roomListColumn);
 
         _roomListScroll = new ScrollView(ScrollViewMode.Vertical);
@@ -786,7 +842,8 @@ internal sealed class TournamentRoomPanel : MonoBehaviour
         parent.style.paddingRight = 14f;
         parent.style.paddingTop = 14f;
         parent.style.paddingBottom = 14f;
-        ApplyBorder(parent, Border);
+        ApplyBorder(parent, Border, 2f);
+        ApplyRadius(parent, 4f);
 
         var chatHeader = new VisualElement();
         chatHeader.style.flexDirection = FlexDirection.Row;
@@ -824,7 +881,8 @@ internal sealed class TournamentRoomPanel : MonoBehaviour
         messagesFrame.style.minWidth = 0f;
         messagesFrame.style.minHeight = 0f;
         messagesFrame.style.backgroundColor = FrameBackground;
-        ApplyBorder(messagesFrame, Border);
+        ApplyBorder(messagesFrame, Border, 2f);
+        ApplyRadius(messagesFrame, 4f);
         chatBody.Add(messagesFrame);
 
         _chatScrollView = new ScrollView(ScrollViewMode.Vertical);
@@ -846,7 +904,8 @@ internal sealed class TournamentRoomPanel : MonoBehaviour
         playerFrame.style.minHeight = 0f;
         playerFrame.style.marginLeft = 12f;
         playerFrame.style.backgroundColor = FrameBackground;
-        ApplyBorder(playerFrame, Border);
+        ApplyBorder(playerFrame, Border, 2f);
+        ApplyRadius(playerFrame, 4f);
         chatBody.Add(playerFrame);
 
         _playerCountLabel = LabelText(JbsLocalization.Get("tournament.chat.player_count", 0), 13, WarmAccent, FontStyle.Bold);
@@ -901,10 +960,12 @@ internal sealed class TournamentRoomPanel : MonoBehaviour
         _createRoomOverlay.style.alignItems = Align.Center;
         _createRoomOverlay.style.justifyContent = Justify.Center;
         _createRoomOverlay.style.backgroundColor = Rgba(0f, 0f, 0f, 0.58f);
+        _createRoomOverlay.pickingMode = PickingMode.Position;
         _createRoomOverlay.SetDisplay(false);
         root.Add(_createRoomOverlay);
 
         var dialog = new VisualElement();
+        dialog.pickingMode = PickingMode.Position;
         dialog.style.width = 620f;
         dialog.style.paddingLeft = 24f;
         dialog.style.paddingRight = 24f;
@@ -918,6 +979,7 @@ internal sealed class TournamentRoomPanel : MonoBehaviour
 
         _roomNameInput = CreateTextField(JbsLocalization.Get("tournament.dialog.room_name_placeholder"));
         _roomNameInput.style.marginTop = 18f;
+        _roomNameInput.maxLength = 20;
         dialog.Add(_roomNameInput);
 
         _roomCodeInput = CreateTextField(JbsLocalization.Get("tournament.dialog.room_code_placeholder"));
@@ -1288,7 +1350,8 @@ internal sealed class TournamentRoomPanel : MonoBehaviour
         row.style.flexDirection = FlexDirection.Row;
         row.style.alignItems = Align.Center;
         row.style.backgroundColor = RowBackground;
-        ApplyBorder(row, Border);
+        ApplyBorder(row, Rgba(0.42f, 0.34f, 0.22f, 0.44f));
+        ApplyRadius(row, 4f);
         RegisterHoverFeedback(row, RowBackground, Rgba(0.14f, 0.18f, 0.24f, 0.99f));
 
         var accent = new VisualElement();
@@ -1379,6 +1442,7 @@ internal sealed class TournamentRoomPanel : MonoBehaviour
         _createAutoStartOnFull = false;
         RefreshCreateRoomOptionLabels();
         _createRoomOverlay.SetDisplay(true);
+        _roomNameInput?.schedule.Execute(() => _roomNameInput?.Focus()).StartingIn(0);
     }
 
     private void OnConfirmCreateRoom()
@@ -1881,10 +1945,7 @@ internal sealed class TournamentRoomPanel : MonoBehaviour
 
     private void OnLeaveRoom()
     {
-        _ = LeaveAndDisconnectAsync(notifyServer: true);
-        LeaveCurrentRoomState();
-        ShowRoomListView();
-        RefreshRoomList();
+        LeaveRoomAndReturnToList("Room leave button clicked");
     }
 
     private void OnRoomDisbandedByHost()
@@ -1894,6 +1955,19 @@ internal sealed class TournamentRoomPanel : MonoBehaviour
         SetStatus(JbsLocalization.Get("tournament.status.room_disbanded"));
         ShowRoomListView();
         RefreshRoomList();
+    }
+
+    private void LeaveRoomAndReturnToList(string reason)
+    {
+        if (_currentRoom != null)
+            JbsLog.Info(LogCategory, $"{reason}; leaving chat room {_currentRoom.Id}.");
+        _ = LeaveAndDisconnectAsync(notifyServer: true);
+        LeaveCurrentRoomState();
+        if (_visible)
+        {
+            ShowRoomListView();
+            RefreshRoomList();
+        }
     }
 
     private void OnChatSend()
@@ -1982,6 +2056,7 @@ internal sealed class TournamentRoomPanel : MonoBehaviour
 
     private static string GetPlayerName()
     {
+        var playerName = JbsLocalization.Get("player.fallback");
         try
         {
             var bridge = Type.GetType("BazaarPlusPlus.GameInterop.BppClientCacheBridge, BazaarPlusPlus");
@@ -1990,14 +2065,48 @@ internal sealed class TournamentRoomPanel : MonoBehaviour
                 var flags = System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Static;
                 var display = bridge.GetMethod("TryGetProfileDisplayUsername", flags)?.Invoke(null, null) as string;
                 if (!string.IsNullOrWhiteSpace(display))
-                    return display;
+                    playerName = display.Trim();
                 var username = bridge.GetMethod("TryGetProfileUsername", flags)?.Invoke(null, null) as string;
-                if (!string.IsNullOrWhiteSpace(username))
-                    return username;
+                if (string.IsNullOrWhiteSpace(display) && !string.IsNullOrWhiteSpace(username))
+                    playerName = username.Trim();
             }
         }
         catch { }
-        return JbsLocalization.Get("player.fallback");
+
+        return AppendSelectedHero(playerName);
+    }
+
+    private static string AppendSelectedHero(string playerName)
+    {
+        var hero = GetSelectedHeroName();
+        if (string.IsNullOrWhiteSpace(hero))
+            return playerName;
+
+        var trimmedName = playerName.Trim();
+        if (trimmedName.EndsWith($@"({hero})", StringComparison.Ordinal))
+            return trimmedName;
+
+        return $"{trimmedName}({hero})";
+    }
+
+    private static string GetSelectedHeroName()
+    {
+        try
+        {
+            var dataType = Type.GetType("TheBazaar.Data, Assembly-CSharp");
+            var selectedHero = dataType?.GetField("SelectedHero", BindingFlags.Public | BindingFlags.Static)?.GetValue(null)
+                ?? dataType?.GetProperty("SelectedHero", BindingFlags.Public | BindingFlags.Static)?.GetValue(null);
+            var heroName = selectedHero?.ToString()?.Trim();
+            if (string.IsNullOrWhiteSpace(heroName) || string.Equals(heroName, "Common", StringComparison.OrdinalIgnoreCase))
+                return string.Empty;
+
+            return heroName;
+        }
+        catch (Exception ex)
+        {
+            JbsLog.Debug(LogCategory, $"Failed to resolve selected hero: {ex.Message}");
+            return string.Empty;
+        }
     }
 
     private static string NormalizeRoomCode(string? value)
@@ -2036,6 +2145,7 @@ internal sealed class TournamentRoomPanel : MonoBehaviour
             if (_shell == null || IsInteractiveDragTarget(evt.target as VisualElement, dragSurface))
                 return;
 
+            _panelBoundsUserAdjusted = true;
             _isDraggingPanel = true;
             _isResizingPanel = false;
             _activePointerId = evt.pointerId;
@@ -2063,6 +2173,7 @@ internal sealed class TournamentRoomPanel : MonoBehaviour
     {
         resizeHandle.RegisterCallback<PointerDownEvent>(evt =>
         {
+            _panelBoundsUserAdjusted = true;
             _isResizingPanel = true;
             _isDraggingPanel = false;
             _activePointerId = evt.pointerId;
@@ -2091,12 +2202,7 @@ internal sealed class TournamentRoomPanel : MonoBehaviour
         if (_root == null || _shell == null)
             return;
 
-        _savedPanelLeft = _panelLeft;
-        _savedPanelTop = _panelTop;
-        _isEdgeDocked = true;
-        _shell.SetDisplay(false);
-        PositionEdgeDockButton();
-        _edgeDockButton?.SetDisplay(true);
+        SetVisible(false);
     }
 
     private void RestoreFromEdgeDock()
@@ -2105,7 +2211,6 @@ internal sealed class TournamentRoomPanel : MonoBehaviour
             return;
 
         ExitEdgeDockState();
-        SetPanelBounds(_savedPanelLeft, _savedPanelTop, _panelWidth, _panelHeight);
     }
 
     private void ExitEdgeDockState()
@@ -2165,10 +2270,19 @@ internal sealed class TournamentRoomPanel : MonoBehaviour
 
         if (!_panelBoundsInitialized)
         {
-            var width = Mathf.Min(DefaultPanelWidth, Mathf.Max(120f, rootWidth - PanelEdgePadding * 2f));
-            var height = Mathf.Min(DefaultPanelHeight, Mathf.Max(120f, rootHeight - PanelEdgePadding * 2f));
+            var nativeBounds = ResolveTournamentMainPanelBounds(rootWidth, rootHeight);
+            var width = Mathf.Min(
+                nativeBounds?.width ?? DefaultPanelWidth,
+                Mathf.Max(120f, rootWidth - PanelEdgePadding * 2f)
+            );
+            var height = Mathf.Min(
+                nativeBounds?.height ?? DefaultPanelHeight,
+                Mathf.Max(120f, rootHeight - PanelEdgePadding * 2f)
+            );
+            var left = nativeBounds?.x ?? (rootWidth - width) * 0.5f;
+            var top = nativeBounds?.y ?? (rootHeight - height) * 0.5f;
             _panelBoundsInitialized = true;
-            SetPanelBounds((rootWidth - width) * 0.5f, (rootHeight - height) * 0.5f, width, height);
+            SetPanelBounds(left, top, width, height);
             return;
         }
 
@@ -2209,6 +2323,69 @@ internal sealed class TournamentRoomPanel : MonoBehaviour
         ApplyPanelVisualBounds(_panelLeft, _panelTop, _panelWidth, _panelHeight);
     }
 
+    private Rect? ResolveTournamentMainPanelBounds(float rootWidth, float rootHeight)
+    {
+        var tournamentRect = FindTournamentHostOrJoinRect();
+        if (tournamentRect != null && _panelObject != null)
+        {
+            var hostRect = _panelObject.transform.parent as RectTransform;
+            if (hostRect != null)
+            {
+                var corners = new Vector3[4];
+                tournamentRect.GetWorldCorners(corners);
+                var bottomLeft = hostRect.InverseTransformPoint(corners[0]);
+                var topLeft = hostRect.InverseTransformPoint(corners[1]);
+                var topRight = hostRect.InverseTransformPoint(corners[2]);
+                var bottomRight = hostRect.InverseTransformPoint(corners[3]);
+
+                var localLeft = Mathf.Min(bottomLeft.x, topLeft.x, topRight.x, bottomRight.x);
+                var localRight = Mathf.Max(bottomLeft.x, topLeft.x, topRight.x, bottomRight.x);
+                var localTop = Mathf.Max(bottomLeft.y, topLeft.y, topRight.y, bottomRight.y);
+                var localBottom = Mathf.Min(bottomLeft.y, topLeft.y, topRight.y, bottomRight.y);
+
+                var width = Mathf.Abs(localRight - localLeft);
+                var height = Mathf.Abs(localTop - localBottom);
+                if (width >= MinPanelWidth * 0.75f && height >= MinPanelHeight * 0.60f)
+                {
+                    var left = rootWidth * 0.5f + localLeft;
+                    var top = rootHeight * 0.5f - localTop;
+                    return new Rect(left, top, width, Mathf.Max(MinPanelHeight, height));
+                }
+            }
+        }
+
+        return null;
+    }
+
+    private static RectTransform? FindTournamentHostOrJoinRect()
+    {
+        RectTransform? best = null;
+        var bestScore = float.MinValue;
+        foreach (var rect in Resources.FindObjectsOfTypeAll<RectTransform>())
+        {
+            if (rect == null || !rect.gameObject.activeInHierarchy)
+                continue;
+            if (!string.Equals(rect.gameObject.name, "Section_HostOrJoin", StringComparison.Ordinal))
+                continue;
+
+            var score = rect.rect.width;
+            if (rect.GetComponentInParent<Canvas>() != null)
+                score += 100f;
+            if (rect.Find("Block_Join/Input_Code") != null)
+                score += 250f;
+            if (rect.Find("Text_Tournament") != null)
+                score += 250f;
+
+            if (score > bestScore)
+            {
+                bestScore = score;
+                best = rect;
+            }
+        }
+
+        return best;
+    }
+
     private void ApplyPanelVisualBounds(float left, float top, float width, float height)
     {
         if (_shell == null)
@@ -2243,7 +2420,8 @@ internal sealed class TournamentRoomPanel : MonoBehaviour
         button.style.marginRight = 0f;
         button.style.marginTop = 0f;
         button.style.marginBottom = 0f;
-        ApplyBorder(button, Border);
+        ApplyBorder(button, Rgba(0.62f, 0.50f, 0.32f, 0.46f));
+        ApplyRadius(button, 4f);
         var font = ResolveUiFont();
         if (font != null)
             button.style.unityFont = font;
@@ -2255,6 +2433,8 @@ internal sealed class TournamentRoomPanel : MonoBehaviour
     private static TextField CreateTextField(string placeholder)
     {
         var field = new TextField();
+        field.focusable = true;
+        field.pickingMode = PickingMode.Position;
         field.style.minHeight = TextFieldHeight;
         field.style.fontSize = 16;
         field.style.color = BodyText;
@@ -2266,7 +2446,8 @@ internal sealed class TournamentRoomPanel : MonoBehaviour
         field.style.marginBottom = 0f;
         field.tooltip = placeholder;
         field.label = string.Empty;
-        ApplyBorder(field, Border);
+        ApplyBorder(field, Rgba(0.50f, 0.42f, 0.30f, 0.42f));
+        ApplyRadius(field, 4f);
         var font = ResolveUiFont();
         if (font != null)
             field.style.unityFont = font;
@@ -2312,16 +2493,24 @@ internal sealed class TournamentRoomPanel : MonoBehaviour
         return pill;
     }
 
-    private static void ApplyBorder(VisualElement element, Color color)
+    private static void ApplyBorder(VisualElement element, Color color, float width = 1f)
     {
-        element.style.borderTopWidth = 1f;
-        element.style.borderRightWidth = 1f;
-        element.style.borderBottomWidth = 1f;
-        element.style.borderLeftWidth = 1f;
+        element.style.borderTopWidth = width;
+        element.style.borderRightWidth = width;
+        element.style.borderBottomWidth = width;
+        element.style.borderLeftWidth = width;
         element.style.borderTopColor = color;
         element.style.borderRightColor = color;
         element.style.borderBottomColor = color;
         element.style.borderLeftColor = color;
+    }
+
+    private static void ApplyRadius(VisualElement element, float radius)
+    {
+        element.style.borderTopLeftRadius = radius;
+        element.style.borderTopRightRadius = radius;
+        element.style.borderBottomRightRadius = radius;
+        element.style.borderBottomLeftRadius = radius;
     }
 
     private static void RegisterButtonFeedback(Button button, Color normal)
