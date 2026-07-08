@@ -1,0 +1,1 @@
+ERROR 2026/07/07 17:08:00.789326 main.go:253: http_error method=GET path=/not-found-for-log-test remote=[::1]:50314 status=404 duration=6µs

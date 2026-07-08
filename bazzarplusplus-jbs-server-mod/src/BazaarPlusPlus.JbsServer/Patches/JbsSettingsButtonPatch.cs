@@ -49,8 +49,8 @@ internal static class JbsSettingsDialogPatch
         if (nativeSettingsButton == null)
             return;
 
+        TournamentSettingsDockRowController.Attach(nativeSettingsButton, key);
         TournamentDockButtonController.Attach(nativeSettingsButton, key);
-        TournamentEnableToggleController.Attach(nativeSettingsButton, key);
     }
 }
 
@@ -76,8 +76,8 @@ internal static class JbsFightMenuPatch
             if (button == null)
                 return;
 
+            TournamentSettingsDockRowController.Attach(button, "FightMenu");
             TournamentDockButtonController.Attach(button, "FightMenu");
-            TournamentEnableToggleController.Attach(button, "FightMenu");
         }
         catch (Exception ex)
         {

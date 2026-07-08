@@ -68,6 +68,9 @@
     <Reference Include="UnityEngine.UI">
       <HintPath>$(ManagedPath)\UnityEngine.UI.dll</HintPath>
     </Reference>
+    <Reference Include="UnityEngine.UIElementsModule">
+      <HintPath>$(ManagedPath)\UnityEngine.UIElementsModule.dll</HintPath>
+    </Reference>
     <Reference Include="Unity.TextMeshPro">
       <HintPath>$(ManagedPath)\Unity.TextMeshPro.dll</HintPath>
     </Reference>
@@ -81,7 +84,7 @@
     <Publicize Include="TheBazaarRuntime" />
   </ItemGroup>
 
-  <!-- Debug: copy to BepInEx plugins -->
+  <!-- Debug: copy DLL and locale files to BepInEx plugins -->
   <Target
     Name="CopyToBepInExPlugins"
     AfterTargets="Build"
@@ -91,6 +94,11 @@
       SourceFiles="$(TargetDir)$(TargetName).dll"
       DestinationFiles="$(GamePath)\BepInEx\plugins\$(TargetName).dll"
     />
-    <Message Text="[JbsServer] Copied to BepInEx plugins." Importance="high" />
+    <MakeDir Directories="$(GamePath)\BepInEx\plugins\JbsServer\locales" />
+    <Copy
+      SourceFiles="$(MSBuildThisFileDirectory)..\..\locales\zh-CN.json;$(MSBuildThisFileDirectory)..\..\locales\en-US.json"
+      DestinationFolder="$(GamePath)\BepInEx\plugins\JbsServer\locales"
+    />
+    <Message Text="[JbsServer] Copied DLL and locale files to BepInEx plugins." Importance="high" />
   </Target>
 </Project>

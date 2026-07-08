@@ -4,6 +4,8 @@ using System;
 using BepInEx;
 using BepInEx.Configuration;
 using BepInEx.Logging;
+using BazaarPlusPlus.JbsServer.Diagnostics;
+using BazaarPlusPlus.JbsServer.Game.TournamentRoom;
 using HarmonyLib;
 
 namespace BazaarPlusPlus.JbsServer;
@@ -19,7 +21,16 @@ public sealed class Plugin : BaseUnityPlugin
         try
         {
             JbsLog.Install(Logger);
+            JbsLog.InitializeFileLogging(System.IO.Path.GetDirectoryName(Info.Location));
             JbsConfig.Initialize(Config);
+            JbsLocalization.Initialize(System.IO.Path.GetDirectoryName(Info.Location));
+            TournamentTitleToggleController.Ensure(gameObject);
+            TournamentRoomAutoCloseController.Ensure(gameObject);
+            JbsNativeTournamentRoomWatcher.Ensure(gameObject);
+            TournamentUiControlDumper.Ensure(
+                gameObject,
+                System.IO.Path.GetDirectoryName(Info.Location) ?? "."
+            );
 
             _harmony.PatchAll(typeof(Plugin).Assembly);
             _patchesApplied = true;

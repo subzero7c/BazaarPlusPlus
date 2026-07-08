@@ -34,9 +34,15 @@ internal sealed class TournamentDockButtonController : MonoBehaviour
         if (hostRect == null)
             return;
 
-        // Avoid double-attaching
-        if (hostRect.Find(objectName) != null)
+        var existingButton = hostRect.Find(objectName) as RectTransform;
+        if (existingButton != null)
+        {
+            var existingController =
+                nativeSettingsButton.gameObject.GetComponent<TournamentDockButtonController>()
+                ?? nativeSettingsButton.gameObject.AddComponent<TournamentDockButtonController>();
+            existingController.Initialize(nativeSettingsButton, existingButton, key);
             return;
+        }
 
         var clone = CloneSettingsButton(nativeSettingsButton, hostRect, objectName);
         if (clone == null)
@@ -85,12 +91,15 @@ internal sealed class TournamentDockButtonController : MonoBehaviour
     private void OnClicked()
     {
         if (!JbsConfig.Enabled)
-            return;
+            JbsConfig.SetEnabled(true);
 
-        if (TournamentRoomPanel.IsVisible)
+        if (TournamentRoomPanel.IsVisibleFrom(_dockButtonRect))
+        {
             TournamentRoomPanel.Close();
-        else
-            TournamentRoomPanel.OpenFromDockButton();
+            return;
+        }
+
+        TournamentRoomPanel.OpenFromDockButton(_dockButtonRect);
     }
 
     private void OnEnabledChanged(bool enabled)
@@ -103,9 +112,7 @@ internal sealed class TournamentDockButtonController : MonoBehaviour
         if (_dockButtonRect == null)
             return;
 
-        // Hide button entirely when the feature is disabled
-        // (the enable-toggle button remains visible so the user can re-enable)
-        _dockButtonRect.gameObject.SetActive(JbsConfig.Enabled);
+        _dockButtonRect.gameObject.SetActive(true);
 
         if (!JbsConfig.Enabled)
             TournamentRoomPanel.Close();
@@ -126,11 +133,6 @@ internal sealed class TournamentDockButtonController : MonoBehaviour
         if (hostRect == null || anchorRect == null)
             return;
 
-        // Find the BPP Collection Panel button (数据共建 / 卡牌图鉴) for this key.
-        // It is named BPP_SettingsDockButton_CollectionPanel_{key}.
-        var collectionButtonName = $"{BppCollectionPanelButtonPrefix}{key}";
-        var collectionButtonTransform = hostRect.Find(collectionButtonName);
-
         var corners = new Vector3[4];
         anchorRect.GetWorldCorners(corners);
 
@@ -146,6 +148,11 @@ internal sealed class TournamentDockButtonController : MonoBehaviour
         var worldUpDir = Math.Sign(anchorTopLocal.y - anchorBottomLocal.y);
         if (worldUpDir == 0)
             worldUpDir = 1;
+
+        // Find the BPP Collection Panel button (数据共建 / 卡牌图鉴) for this key.
+        // It is named BPP_SettingsDockButton_CollectionPanel_{key}.
+        var collectionButtonName = $"{BppCollectionPanelButtonPrefix}{key}";
+        var collectionButtonTransform = hostRect.Find(collectionButtonName);
 
         float refX;
         float refY;
