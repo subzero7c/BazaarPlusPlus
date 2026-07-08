@@ -15,6 +15,7 @@ internal interface IBppServices
     IPathProvider Paths { get; }
     IRunContext RunContext { get; }
     IGameStateProbe GameStateProbe { get; }
+    IBazaarGameEnvironmentProbe GameEnvironment { get; }
     IEncounterStateProbe EncounterState { get; }
     ManualLogSource Logger { get; }
 }

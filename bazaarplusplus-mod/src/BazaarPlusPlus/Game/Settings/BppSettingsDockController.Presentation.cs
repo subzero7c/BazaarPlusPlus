@@ -1,5 +1,6 @@
 #nullable enable
 using System.Collections.Generic;
+using BazaarPlusPlus.Game.Settings.Visual;
 using BazaarPlusPlus.Infrastructure;
 using BazaarPlusPlus.Infrastructure.Fonts;
 using TMPro;
@@ -21,7 +22,7 @@ internal sealed partial class BppSettingsDockController
 
         var cloneScale = _dockButtonRect != null ? _dockButtonRect.localScale.x : 1f;
         var panelScale = BppSettingsDockGeometry.CalculatePanelLocalScale(
-            PanelExpandedScale,
+            BppSettingsDockVisualConstants.PanelExpandedScale,
             cloneScale
         );
         rectTransform.localScale = new Vector3(panelScale, panelScale, 1f);
@@ -31,8 +32,8 @@ internal sealed partial class BppSettingsDockController
                 ? new Vector2(8f, 0f)
                 : new Vector2(-8f, 0f);
         rectTransform.sizeDelta = new Vector2(
-            PanelWidth,
-            CalculatePanelHeight(BppSettingsDockCatalog.Definitions.Count)
+            BppSettingsDockVisualConstants.PanelWidth,
+            BppSettingsDockVisualConstants.CalculatePanelHeight(BppSettingsDockCatalog.Definitions.Count)
         );
     }
 
@@ -41,35 +42,24 @@ internal sealed partial class BppSettingsDockController
         var background = panelObject.GetComponent<Image>();
         if (background != null)
         {
-            background.color = new Color(0.09f, 0.09f, 0.11f, 0.96f);
+            background.color = BppSettingsDockVisualConstants.PanelBackground;
             background.raycastTarget = true;
         }
 
         var outline = panelObject.GetComponent<Outline>();
         if (outline != null)
         {
-            outline.effectColor = new Color(0.76f, 0.45f, 0.14f, 0.75f);
-            outline.effectDistance = new Vector2(1.5f, -1.5f);
+            outline.effectColor = BppSettingsDockVisualConstants.PanelOutlineColor;
+            outline.effectDistance = BppSettingsDockVisualConstants.PanelOutlineDistance;
             outline.useGraphicAlpha = true;
         }
     }
 
     private static void ConfigureHeaderRect(RectTransform headerRect)
-    {
-        headerRect.anchorMin = new Vector2(0f, 1f);
-        headerRect.anchorMax = new Vector2(1f, 1f);
-        headerRect.pivot = new Vector2(0f, 1f);
-        headerRect.offsetMin = new Vector2(PanelPadding, -PanelTopPadding - HeaderHeight);
-        headerRect.offsetMax = new Vector2(-PanelPadding, -PanelTopPadding);
-    }
+        => BppSettingsDockVisualConstants.ConfigureHeaderRect(headerRect);
 
     private static void ConfigureRowRect(RectTransform rowRect, int index)
-    {
-        var rowTop =
-            PanelTopPadding + HeaderHeight + HeaderSpacing + (index * (RowHeight + RowSpacing));
-        rowRect.offsetMin = new Vector2(PanelPadding, -(rowTop + RowHeight));
-        rowRect.offsetMax = new Vector2(-PanelPadding, -rowTop);
-    }
+        => BppSettingsDockVisualConstants.ConfigureRowRect(rowRect, index);
 
     private TextMeshProUGUI? CreateText(
         string objectName,
@@ -177,12 +167,6 @@ internal sealed partial class BppSettingsDockController
 
         BppTmpFont.TryApply(text, sampleText ?? text.text);
         text.richText = false;
-    }
-
-    private static float CalculatePanelHeight(int rowCount)
-    {
-        var rowsHeight = rowCount > 0 ? (rowCount * RowHeight) + ((rowCount - 1) * RowSpacing) : 0f;
-        return PanelTopPadding + HeaderHeight + HeaderSpacing + rowsHeight + PanelBottomPadding;
     }
 
     private static string ResolveHeader(string languageCode)

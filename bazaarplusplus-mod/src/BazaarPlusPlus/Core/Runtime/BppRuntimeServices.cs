@@ -17,6 +17,7 @@ internal sealed class BppRuntimeServices : IBppServices
         IPathProvider paths,
         IRunContext runContext,
         IGameStateProbe gameStateProbe,
+        IBazaarGameEnvironmentProbe gameEnvironment,
         IEncounterStateProbe encounterState,
         ManualLogSource logger
     )
@@ -26,6 +27,8 @@ internal sealed class BppRuntimeServices : IBppServices
         Paths = paths ?? throw new ArgumentNullException(nameof(paths));
         RunContext = runContext ?? throw new ArgumentNullException(nameof(runContext));
         GameStateProbe = gameStateProbe ?? throw new ArgumentNullException(nameof(gameStateProbe));
+        GameEnvironment =
+            gameEnvironment ?? throw new ArgumentNullException(nameof(gameEnvironment));
         EncounterState = encounterState ?? throw new ArgumentNullException(nameof(encounterState));
         Logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
@@ -35,6 +38,7 @@ internal sealed class BppRuntimeServices : IBppServices
     public IPathProvider Paths { get; }
     public IRunContext RunContext { get; }
     public IGameStateProbe GameStateProbe { get; }
+    public IBazaarGameEnvironmentProbe GameEnvironment { get; }
     public IEncounterStateProbe EncounterState { get; }
     public ManualLogSource Logger { get; }
 }

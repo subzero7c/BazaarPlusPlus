@@ -45,6 +45,10 @@ public class Plugin : BaseUnityPlugin
             var services = _composition.Services;
             BppLog.Install(services.Logger);
             BppPatchHost.Install(services);
+            BppLog.Info(
+                "GameEnvironment",
+                $"Detected Bazaar environment: {services.GameEnvironment.CurrentEnvironment}"
+            );
 
             InstallStaticUtilities(services, _composition.SettingsDockRegistry);
 
@@ -68,6 +72,7 @@ public class Plugin : BaseUnityPlugin
 
             BppLog.Info("Plugin", "Attaching runtime components");
             _composition.Mountables.MountAll(gameObject, services);
+            BppNativeTournamentRoomWatcher.Ensure(gameObject);
             BppLog.Info("Plugin", "Runtime components attached");
 
             BppLog.Info("Plugin", "Plugin initialization completed");

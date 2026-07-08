@@ -1,6 +1,8 @@
 #nullable enable
 using System;
 using System.Collections.Generic;
+using BazaarPlusPlus.GameInterop;
+using BazaarPlusPlus.Game.Settings.Visual;
 using BazaarPlusPlus.Infrastructure;
 using TMPro;
 using UnityEngine;
@@ -13,18 +15,7 @@ internal sealed partial class BppSettingsDockController
         IBppNativeSettingsButtonCloneOwner
 {
     private const string LogCategory = "BppSettingsDock";
-    private const string HeaderObjectName = "BPP_SettingsDockHeader";
-    private const float PanelWidth = 456f;
-    private const float PanelExpandedScale = 1.5f;
-    private const float PanelPadding = 18f;
-    private const float PanelTopPadding = 16f;
-    private const float PanelBottomPadding = 28f;
-    private const float HeaderHeight = 24f;
-    private const float HeaderSpacing = 16f;
-    private const float RowHeight = 48f;
-    private const float RowSpacing = 12f;
-    private const float RowInnerPadding = 16f;
-    private const float StatusWidth = 80f;
+    private const string HeaderObjectName = BppSettingsDockVisualConstants.HeaderObjectName;
 
     private readonly List<DockSettingRowView> _rows = [];
 
@@ -38,6 +29,7 @@ internal sealed partial class BppSettingsDockController
     private bool _isExpanded;
     private int _screenshotSuppressionCount;
     private BppSettingsDockPlacement _placement;
+    private readonly BazaarGameEnvironmentProbe _gameEnvironmentProbe = new();
     private static bool _fontResolutionLogged;
 
     internal static void Attach(Button anchorButton, BppSettingsDockPlacement placement)
@@ -185,9 +177,9 @@ internal sealed partial class BppSettingsDockController
         _headerLabel = CreateText(
             HeaderObjectName,
             panelRect,
-            21f,
+            BppSettingsDockVisualConstants.HeaderFontSize,
             TextAlignmentOptions.Left,
-            new Color(0.97f, 0.83f, 0.49f, 1f)
+            BppSettingsDockVisualConstants.HeaderTextColor
         );
         if (_headerLabel == null)
         {
@@ -243,7 +235,7 @@ internal sealed partial class BppSettingsDockController
         background.raycastTarget = true;
 
         var outline = rowObject.GetComponent<Outline>();
-        outline.effectDistance = new Vector2(1f, -1f);
+        outline.effectDistance = BppSettingsDockVisualConstants.RowOutlineDistance;
         outline.useGraphicAlpha = true;
 
         var button = rowObject.GetComponent<Button>();
@@ -255,36 +247,26 @@ internal sealed partial class BppSettingsDockController
         var label = CreateText(
             "Label",
             rowRect,
-            19f,
+            BppSettingsDockVisualConstants.RowLabelFontSize,
             TextAlignmentOptions.Left,
-            new Color(0.93f, 0.93f, 0.95f, 1f)
+            BppSettingsDockVisualConstants.RowLabelActiveColor
         );
         if (label == null)
             throw new InvalidOperationException(
                 $"Failed to create row label for {definition.Key}."
             );
 
-        var labelRect = label.rectTransform;
-        labelRect.anchorMin = new Vector2(0f, 0f);
-        labelRect.anchorMax = new Vector2(1f, 1f);
-        labelRect.pivot = new Vector2(0f, 0.5f);
-        labelRect.offsetMin = new Vector2(RowInnerPadding, 0f);
-        labelRect.offsetMax = new Vector2(-(StatusWidth + RowInnerPadding + 8f), 0f);
+        BppSettingsDockVisualConstants.ConfigureLabelRect(label.rectTransform);
         label.textWrappingMode = TextWrappingModes.NoWrap;
         label.overflowMode = TextOverflowModes.Ellipsis;
 
-        var status = CreateText("Status", rowRect, 17f, TextAlignmentOptions.Center, Color.white);
+        var status = CreateText("Status", rowRect, BppSettingsDockVisualConstants.RowStatusFontSize, TextAlignmentOptions.Center, Color.white);
         if (status == null)
             throw new InvalidOperationException(
                 $"Failed to create row status label for {definition.Key}."
             );
 
-        var statusRect = status.rectTransform;
-        statusRect.anchorMin = new Vector2(1f, 0.5f);
-        statusRect.anchorMax = new Vector2(1f, 0.5f);
-        statusRect.pivot = new Vector2(1f, 0.5f);
-        statusRect.sizeDelta = new Vector2(StatusWidth, RowHeight);
-        statusRect.anchoredPosition = new Vector2(-RowInnerPadding, 0f);
+        BppSettingsDockVisualConstants.ConfigureStatusRect(status.rectTransform);
         status.textWrappingMode = TextWrappingModes.NoWrap;
 
         return new DockSettingRowView(definition, rowRect, background, outline, label, status);
@@ -342,14 +324,14 @@ internal sealed partial class BppSettingsDockController
         ApplyTextStyle(row.Label, row.Label.text);
         ApplyTextStyle(row.Status, row.Status.text);
         row.Background.color = enabled
-            ? new Color(0.23f, 0.35f, 0.22f, 0.94f)
-            : new Color(0.19f, 0.19f, 0.22f, 0.92f);
+            ? BppSettingsDockVisualConstants.RowEnabledBackground
+            : BppSettingsDockVisualConstants.RowDisabledBackground;
         row.Outline.effectColor = enabled
-            ? new Color(0.78f, 0.86f, 0.46f, 0.70f)
-            : new Color(0f, 0f, 0f, 0.45f);
+            ? BppSettingsDockVisualConstants.RowEnabledOutlineColor
+            : BppSettingsDockVisualConstants.RowDisabledOutlineColor;
         row.Status.color = enabled
-            ? new Color(0.90f, 0.97f, 0.78f, 1f)
-            : new Color(0.75f, 0.78f, 0.82f, 0.98f);
+            ? BppSettingsDockVisualConstants.RowStatusEnabledColor
+            : BppSettingsDockVisualConstants.RowStatusDisabledColor;
     }
 
     private void SyncDockButtonPlacement()
@@ -361,6 +343,18 @@ internal sealed partial class BppSettingsDockController
         var anchorRect = _anchorButton.transform as RectTransform;
         if (parentRect == null || anchorRect == null)
             return;
+
+        if (_gameEnvironmentProbe.IsTournamentEnvironment())
+        {
+            _dockButtonRect.localPosition = BppTournamentDockButtonLayout.CalculateLocalPosition(
+                parentRect,
+                _dockButtonRect,
+                BppTournamentDockButtonSlot.SettingsDock
+            );
+            _dockButtonRect.localRotation = Quaternion.identity;
+            _dockButtonRect.SetAsLastSibling();
+            return;
+        }
 
         var corners = new Vector3[4];
         anchorRect.GetWorldCorners(corners);

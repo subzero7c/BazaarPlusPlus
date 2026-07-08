@@ -40,6 +40,7 @@ internal sealed class BppComposition : IDisposable
     private readonly BepInExPathProvider _paths = new();
     private readonly RunContextStore _runContext = new();
     private readonly GameStateProbe _gameStateProbe = new();
+    private readonly BazaarGameEnvironmentProbe _gameEnvironmentProbe = new();
     private readonly EncounterStateProbe _encounterStateProbe = new();
     private readonly BppRuntimeServices _services;
     private readonly BppFeatureRegistry _featureRegistry = new();
@@ -81,6 +82,7 @@ internal sealed class BppComposition : IDisposable
             _paths,
             _runContext,
             _gameStateProbe,
+            _gameEnvironmentProbe,
             _encounterStateProbe,
             logger
         );
